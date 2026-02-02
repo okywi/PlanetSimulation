@@ -1,7 +1,6 @@
 package planetsimulation
 
 import (
-	"math/rand"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -22,21 +21,31 @@ func newControls() *controls {
 	}
 }
 
-func (controls *controls) selectPlanetIfPossible(sim *simulation, x int, y int) bool {
-	for _, planet := range sim.planets {
-		isSelectedX := false
-		isSelectedY := false
-
-		if x >= int(planet.x)-int(planet.radius) && x <= int(planet.x)+int(planet.radius) {
-			isSelectedX = true
+func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int, y int) bool {
+	for i, planet := range sim.planets {
+		// deselect when already selected
+		if sim.isPlanetSelected {
+			selectedPlanet := sim.planets[sim.selectedPlanetIndex]
+			isSelectedAgain := overlaps(
+				x, y,
+				int(selectedPlanet.x)-int(selectedPlanet.radius), int(selectedPlanet.x)+int(selectedPlanet.radius),
+				int(selectedPlanet.y)-int(selectedPlanet.radius), int(selectedPlanet.y)+int(selectedPlanet.radius),
+			)
+			if isSelectedAgain {
+				sim.isPlanetSelected = false
+				return true
+			}
 		}
 
-		if y >= int(planet.y)-int(planet.radius) && y <= int(planet.y)+int(planet.radius) {
-			isSelectedY = true
-		}
+		isSelected := overlaps(
+			x, y,
+			int(planet.x)-int(planet.radius), int(planet.x)+int(planet.radius),
+			int(planet.y)-int(planet.radius), int(planet.y)+int(planet.radius),
+		)
 
-		if isSelectedX && isSelectedY {
-			sim.selectedPlanet = planet
+		if isSelected {
+			sim.selectedPlanetIndex = i
+			sim.isPlanetSelected = true
 			return true
 		}
 	}
@@ -55,24 +64,15 @@ func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 			return
 		}
 
-		selectedX := mouseX - sim.screen.offset[0]
-		selectedY := mouseY - sim.screen.offset[1]
+		selectedX := float64(mouseX) - sim.screen.offset[0]
+		selectedY := float64(mouseY) - sim.screen.offset[1]
 
-		hasSelected := controls.selectPlanetIfPossible(sim, selectedX, selectedY)
-		if hasSelected {
+		if controls.selectPlanetIfPossible(ui, sim, int(selectedX), int(selectedY)) {
 			return
 		}
 
-		newPlanet := createPlanet(
-			float64(selectedX),
-			float64(selectedY),
-			sim.planetRadius,
-			sim.planetMass,
-			vector2{1, 200},
-			SetColor(uint8(rand.Intn(255)), uint8(rand.Intn(255)), uint8(rand.Intn(255)), 255),
-			sim.screen.offset,
-		)
-		sim.planets = append(sim.planets, newPlanet)
+		sim.updateToCreatePlanet(float64(selectedX), float64(selectedY))
+		sim.toCreatePlanet.shown = true
 	}
 
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
@@ -110,9 +110,12 @@ func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 		dx := currentMousePosition[0] - controls.previousMousePosition[0]
 		dy := currentMousePosition[1] - controls.previousMousePosition[1]
 
+		// clear focused planet
+		sim.isPlanetFocused = false
+
 		// update offsets
-		sim.screen.offset[0] += dx
-		sim.screen.offset[1] += dy
+		sim.screen.offset[0] += float64(dx)
+		sim.screen.offset[1] += float64(dy)
 
 		// move planets
 		for _, planet := range sim.planets {

@@ -43,7 +43,7 @@ func createGame() *Game {
 
 	game.simulation = newSimulation(game.screenSize)
 
-	game.simulation.createFirstPlanet()
+	//game.simulation.createFirstPlanet()
 
 	// Window Setup
 	ebiten.SetWindowSize(game.screenSize[0], game.screenSize[1])

@@ -12,7 +12,7 @@ import (
 type Planet struct {
 	x               float64
 	y               float64
-	offset          []int
+	offset          []float64
 	radius          float64
 	velocity        vector2
 	mass            float64
@@ -35,14 +35,22 @@ func (p *Planet) translate(dx float64, dy float64) {
 	p.geometry.Translate(dx, dy)
 }
 
-func (p *Planet) setPositionOnStart(x float64, y float64, offset []int) {
+func (p *Planet) setPositionOnStart(x float64, y float64, offset []float64) {
 	p.x = x
 	p.y = y
 
 	// center circle
-	p.geometry.Translate(x-float64(p.radius), y-float64(p.radius))
+	p.geometry.Translate(x-p.radius, y-p.radius)
 	// adjust for offset
-	p.geometry.Translate(float64(offset[0]), float64(offset[1]))
+	p.geometry.Translate(offset[0], offset[1])
+}
+
+func (p *Planet) setPosition(x float64, y float64) {
+	p.x = x
+	p.y = y
+
+	p.geometry.Reset()
+	p.setPositionOnStart(p.x, p.y, p.offset)
 }
 
 func (p *Planet) updateImage() {
@@ -87,16 +95,23 @@ func (p *Planet) clearTraces() {
 }
 
 func (p *Planet) focus(sim *simulation) {
-	sim.focusedPlanet = sim.selectedPlanet
+	sim.returnToOrigin()
 
-	dx := int(sim.focusedPlanet.x) - p.offset[0] + sim.screen.offset[0]
-	dy := int(sim.focusedPlanet.y) - p.offset[1] + sim.screen.offset[1]
+	// move to planet
+	focusedPlanet := sim.planets[sim.focusedPlanetIndex]
+	planetDx := focusedPlanet.x
+	planetDy := focusedPlanet.y
+	sim.screen.offset[0] -= planetDx
+	sim.screen.offset[1] -= planetDy
 
-	p.offset[0] += dx
-	p.offset[1] += dy
+	for _, planet := range sim.planets {
+		planet.geometry.Translate(-planetDx, -planetDy)
+	}
+
+	p.updateImage()
 }
 
-func createPlanet(x float64, y float64, radius float64, mass float64, velocity vector2, color color.Color, offset []int) *Planet {
+func newPlanet(x float64, y float64, radius float64, mass float64, velocity vector2, color color.Color, offset []float64) *Planet {
 	p := Planet{}
 
 	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
@@ -106,7 +121,7 @@ func createPlanet(x float64, y float64, radius float64, mass float64, velocity v
 	p.mass = mass
 
 	p.geometry = ebiten.GeoM{}
-	// adjust for center and offset
+	// adjust for center and screen offset
 	p.offset = offset
 	p.setPositionOnStart(x, y, p.offset)
 	p.updateImage()
@@ -119,6 +134,13 @@ func createPlanet(x float64, y float64, radius float64, mass float64, velocity v
 	return &p
 }
 
+func (p *Planet) handleFocusedPlanet(sim *simulation, dx float64, dy float64) {
+	if sim.isPlanetFocused {
+		sim.screen.offset[0] += dx
+		sim.screen.offset[1] += dy
+	}
+}
+
 func (p *Planet) Update(sim *simulation, planets []*Planet) error {
 	if sim.running {
 		p.handleGravitation(sim, planets)
@@ -128,11 +150,6 @@ func (p *Planet) Update(sim *simulation, planets []*Planet) error {
 }
 
 func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
-	// dont calculate if only one planet
-	if len(planets) <= 1 {
-		return
-	}
-
 	forces := make([]vector2, 0)
 
 	for i := 0; i < len(planets); i++ {
@@ -210,6 +227,7 @@ func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
 		}
 
 		p.traces = append(p.traces, tracePosition)
+
 		p.tickCount = 0
 	}
 
@@ -241,6 +259,5 @@ func (p *Planet) Draw(screen *ebiten.Image) {
 			float32(float64(nextTrace[1])+float64(p.offset[1])),
 			p.traceWidth, p.color, p.antialiasTraces,
 		)
-
 	}
 }

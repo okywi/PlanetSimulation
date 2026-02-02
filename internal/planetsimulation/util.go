@@ -39,3 +39,32 @@ func SetColor(r uint8, g uint8, b uint8, a uint8) color.RGBA {
 
 	return color
 }
+
+func convertColorToInt(color color.Color) (int, int, int, int) {
+	r, g, b, a := color.RGBA()
+
+	r8 := int(r >> 8)
+	g8 := int(g >> 8)
+	b8 := int(b >> 8)
+	a8 := int(a >> 8)
+
+	return r8, g8, b8, a8
+}
+
+func overlaps(x, y, xleft int, xright, ytop int, ybottom int) bool {
+	overlapsX := false
+	overlapsY := false
+
+	if x >= xleft && x <= xright {
+		overlapsX = true
+	}
+
+	if y >= ytop && y <= ybottom {
+		overlapsY = true
+	}
+
+	if overlapsX && overlapsY {
+		return true
+	}
+	return false
+}
