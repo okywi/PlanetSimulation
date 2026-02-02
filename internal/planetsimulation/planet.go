@@ -210,8 +210,7 @@ func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
 	}
 
 	// add velocity
-	p.velocity.x = p.velocity.x + newVelocity.x
-	p.velocity.y = p.velocity.y + newVelocity.y
+	p.velocity.add(newVelocity)
 
 	// adjust for timestep
 	dx := p.velocity.x * time
@@ -220,7 +219,7 @@ func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
 	p.translate(dx, dy)
 
 	// trace ticks
-	if p.tickCount >= p.traceEveryNTick {
+	for p.tickCount >= p.traceEveryNTick {
 		tracePosition := []int{
 			int(p.x),
 			int(p.y),
@@ -228,10 +227,10 @@ func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
 
 		p.traces = append(p.traces, tracePosition)
 
-		p.tickCount = 0
+		p.tickCount -= p.traceEveryNTick
 	}
 
-	p.tickCount += 1
+	p.tickCount++
 }
 
 func (p *Planet) Draw(screen *ebiten.Image) {
@@ -247,6 +246,7 @@ func (p *Planet) Draw(screen *ebiten.Image) {
 		if i%p.drawEveryNTick != 0 {
 			continue
 		}
+
 		currentTrace := p.traces[i]
 		nextTrace := p.traces[i+1]
 

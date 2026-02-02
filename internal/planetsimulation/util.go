@@ -22,10 +22,10 @@ func (v vector2) normalize() vector2 {
 	}
 }
 
-func (v vector2) add(v1 vector2, v2 vector2) vector2 {
+func (v vector2) add(v2 vector2) vector2 {
 	return vector2{
-		v1.x + v2.x,
-		v2.y + v2.y,
+		v.x + v2.x,
+		v.y + v2.y,
 	}
 }
 
