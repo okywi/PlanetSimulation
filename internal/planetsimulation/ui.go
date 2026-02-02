@@ -215,7 +215,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 				ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 				ctx.Text("x: ")
 				ctx.NumberFieldF(&x, 1.0, 1).On(func() {
-					selectedPlanet.setPosition(x, selectedPlanet.x)
+					selectedPlanet.setPosition(x, selectedPlanet.y)
 				})
 			})
 			// fake negate
