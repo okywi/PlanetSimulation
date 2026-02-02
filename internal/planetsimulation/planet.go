@@ -3,6 +3,7 @@ package planetsimulation
 import (
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -12,7 +13,7 @@ type Planet struct {
 	x               float64
 	y               float64
 	offset          []int
-	radius          float32
+	radius          float64
 	velocity        vector2
 	mass            float64
 	color           color.Color
@@ -24,6 +25,7 @@ type Planet struct {
 	tickCount       int
 	traceEveryNTick int // every Nth tick
 	drawEveryNTick  int
+	isFocused       bool
 }
 
 func (p *Planet) translate(dx float64, dy float64) {
@@ -33,21 +35,68 @@ func (p *Planet) translate(dx float64, dy float64) {
 	p.geometry.Translate(dx, dy)
 }
 
-func (p *Planet) setPositionOnStart(x float64, y float64, offsetX int, offsetY int) {
+func (p *Planet) setPositionOnStart(x float64, y float64, offset []int) {
 	p.x = x
 	p.y = y
 
 	// center circle
 	p.geometry.Translate(x-float64(p.radius), y-float64(p.radius))
 	// adjust for offset
-	p.geometry.Translate(float64(offsetX), float64(offsetY))
+	p.geometry.Translate(float64(offset[0]), float64(offset[1]))
 }
 
 func (p *Planet) updateImage() {
-	vector.FillCircle(p.image, p.radius, p.radius, p.radius, p.color, true)
+	p.geometry.Reset()
+	p.setPositionOnStart(p.x, p.y, p.offset)
+	radius := float32(p.radius)
+	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
+	vector.FillCircle(p.image, radius, radius, radius, p.color, true)
 }
 
-func createPlanet(x float64, y float64, radius float32, mass float64, velocity vector2, color color.Color, offset []int) *Planet {
+func (p *Planet) getColor() (int, int, int) {
+	r, g, b, _ := p.color.RGBA()
+
+	r8 := int(r >> 8)
+	g8 := int(g >> 8)
+	b8 := int(b >> 8)
+
+	return r8, g8, b8
+}
+
+func (p *Planet) changeColor(nR int, nG int, nB int) {
+	r, g, b, a := p.color.RGBA()
+
+	if nR != -1 {
+		r = uint32(nR)
+	}
+
+	if nG != -1 {
+		g = uint32(nG)
+	}
+
+	if nB != -1 {
+		b = uint32(nB)
+	}
+
+	p.color = SetColor(uint8(r), uint8(g), uint8(b), uint8(a))
+	p.updateImage()
+}
+
+func (p *Planet) clearTraces() {
+	p.traces = slices.Delete(p.traces, 0, len(p.traces))
+}
+
+func (p *Planet) focus(sim *simulation) {
+	sim.focusedPlanet = sim.selectedPlanet
+
+	dx := int(sim.focusedPlanet.x) - p.offset[0] + sim.screen.offset[0]
+	dy := int(sim.focusedPlanet.y) - p.offset[1] + sim.screen.offset[1]
+
+	p.offset[0] += dx
+	p.offset[1] += dy
+}
+
+func createPlanet(x float64, y float64, radius float64, mass float64, velocity vector2, color color.Color, offset []int) *Planet {
 	p := Planet{}
 
 	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
@@ -56,12 +105,11 @@ func createPlanet(x float64, y float64, radius float32, mass float64, velocity v
 	p.velocity = velocity
 	p.mass = mass
 
-	vector.FillCircle(p.image, radius, radius, radius, p.color, true)
-
 	p.geometry = ebiten.GeoM{}
 	// adjust for center and offset
 	p.offset = offset
-	p.setPositionOnStart(x, y, p.offset[0], p.offset[1])
+	p.setPositionOnStart(x, y, p.offset)
+	p.updateImage()
 
 	p.antialiasTraces = false
 	p.traceEveryNTick = 5

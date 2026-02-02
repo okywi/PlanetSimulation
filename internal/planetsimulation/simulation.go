@@ -17,16 +17,17 @@ type simulation struct {
 	gameSize              []int
 	currentScale          float64
 	planets               []*Planet
-	planetRadius          float32
+	planetRadius          float64
 	planetMass            float64
 	gravitationalConstant float64
 	shouldReset           bool
 	running               bool
 	selectedPlanet        *Planet
+	focusedPlanet         *Planet
+	tps                   int
 }
 
 func newSimulationScreen(gameSize []int) *SimulationScreen {
-
 	screen := &SimulationScreen{
 		image:    ebiten.NewImage(gameSize[0], gameSize[1]),
 		geometry: ebiten.GeoM{},
@@ -37,8 +38,6 @@ func newSimulationScreen(gameSize []int) *SimulationScreen {
 }
 
 func newSimulation(gameSize []int) *simulation {
-	ebiten.SetTPS(120)
-
 	screen := newSimulationScreen(gameSize)
 
 	return &simulation{
@@ -49,6 +48,7 @@ func newSimulation(gameSize []int) *simulation {
 		gravitationalConstant: 10.0,
 		shouldReset:           false,
 		running:               true,
+		tps:                   120,
 	}
 }
 
@@ -59,6 +59,8 @@ func (sim *simulation) createFirstPlanet() {
 }
 
 func (sim *simulation) Update() error {
+	ebiten.SetTPS(sim.tps)
+
 	var err error
 	for _, planet := range sim.planets {
 		err = planet.Update(sim, sim.planets)

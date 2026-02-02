@@ -1,7 +1,6 @@
 package planetsimulation
 
 import (
-	"log"
 	"math/rand"
 	"slices"
 
@@ -37,7 +36,6 @@ func (controls *controls) selectPlanetIfPossible(sim *simulation, x int, y int) 
 		}
 
 		if isSelectedX && isSelectedY {
-			log.Println("Selected planet with color: ", planet.color)
 			sim.selectedPlanet = planet
 			return true
 		}
@@ -46,15 +44,20 @@ func (controls *controls) selectPlanetIfPossible(sim *simulation, x int, y int) 
 	return false
 }
 
-func (controls *controls) handlePlanetCreation(sim *simulation) {
+func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 	mouseX, mouseY := ebiten.CursorPosition()
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && !controls.mouseButtonsPressed[0] {
 		controls.mouseButtonsPressed[ebiten.MouseButton0] = true
 
+		// check if ui focused/hovered
+		if ui.hasFocus == 1 {
+			return
+		}
+
 		selectedX := mouseX - sim.screen.offset[0]
 		selectedY := mouseY - sim.screen.offset[1]
-		log.Println(selectedX, selectedY)
+
 		hasSelected := controls.selectPlanetIfPossible(sim, selectedX, selectedY)
 		if hasSelected {
 			return
