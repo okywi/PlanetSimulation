@@ -210,7 +210,7 @@ func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
 	}
 
 	// add velocity
-	p.velocity.add(newVelocity)
+	p.velocity = p.velocity.add(newVelocity)
 
 	// adjust for timestep
 	dx := p.velocity.x * time
