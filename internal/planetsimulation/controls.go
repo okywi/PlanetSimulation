@@ -26,7 +26,7 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int,
 		// deselect when already selected
 		if sim.isPlanetSelected {
 			selectedPlanet := sim.planets[sim.selectedPlanetIndex]
-			isSelectedAgain := overlaps(
+			isSelectedAgain := overlapsXY(
 				x, y,
 				int(selectedPlanet.x)-int(selectedPlanet.radius), int(selectedPlanet.x)+int(selectedPlanet.radius),
 				int(selectedPlanet.y)-int(selectedPlanet.radius), int(selectedPlanet.y)+int(selectedPlanet.radius),
@@ -37,7 +37,7 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int,
 			}
 		}
 
-		isSelected := overlaps(
+		isSelected := overlapsXY(
 			x, y,
 			int(planet.x)-int(planet.radius), int(planet.x)+int(planet.radius),
 			int(planet.y)-int(planet.radius), int(planet.y)+int(planet.radius),
@@ -53,6 +53,22 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int,
 	return false
 }
 
+func (controls *controls) Update(sim *simulation, ui *ui) {
+	controls.handlePlanetCreation(sim, ui)
+	controls.handleMovement(sim)
+	controls.handlePausing(sim)
+}
+
+func (controls *controls) checkUIFocusLayouts(ui *ui, mouseX int, mouseY int) bool {
+	for _, rect := range ui.layouts {
+		if mouseX >= rect.Min.X && mouseX <= rect.Max.X && mouseY >= rect.Min.Y && mouseY <= rect.Max.Y {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 	mouseX, mouseY := ebiten.CursorPosition()
 
@@ -60,29 +76,27 @@ func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 		controls.mouseButtonsPressed[ebiten.MouseButton0] = true
 
 		// check if ui focused/hovered
-		if ui.hasFocus == 1 {
+		if ui.hasFocus == 1 || controls.checkUIFocusLayouts(ui, mouseX, mouseY) {
 			return
 		}
 
-		selectedX := float64(mouseX) - sim.screen.offset[0]
-		selectedY := float64(mouseY) - sim.screen.offset[1]
+		selectedX := float64(mouseX) - sim.planetsOffset[0]
+		selectedY := float64(mouseY) - sim.planetsOffset[1]
 
 		if controls.selectPlanetIfPossible(ui, sim, int(selectedX), int(selectedY)) {
 			return
 		}
 
 		sim.updateToCreatePlanet(float64(selectedX), float64(selectedY))
-		sim.toCreatePlanet.shown = true
+		sim.planetCreator.showPlanet = true
 	}
 
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
 		controls.mouseButtonsPressed[ebiten.MouseButton0] = false
 	}
+}
 
-	if ebiten.IsKeyPressed(ebiten.KeyR) {
-		sim.shouldReset = true
-	}
-
+func (controls *controls) handlePausing(sim *simulation) {
 	if ebiten.IsKeyPressed(ebiten.KeySpace) {
 		if slices.Contains(controls.keysPressed, ebiten.KeySpace) {
 			return
@@ -96,28 +110,29 @@ func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 		controls.keysPressed = slices.DeleteFunc(controls.keysPressed, func(key ebiten.Key) bool {
 			if key == ebiten.KeySpace {
 				return true
-
 			}
 			return false
 		})
 	}
+}
 
+func (controls *controls) handleMovement(sim *simulation) {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton1) {
 		ebiten.SetCursorShape(ebiten.CursorShapeMove)
-		currentMousePosition := []int{0, 0}
+		// clear focused planet
+		sim.isPlanetFocused = false
+
+		// get difference of mouse positions
+		currentMousePosition := make([]int, 2)
 		currentMousePosition[0], currentMousePosition[1] = ebiten.CursorPosition()
 
 		dx := currentMousePosition[0] - controls.previousMousePosition[0]
 		dy := currentMousePosition[1] - controls.previousMousePosition[1]
-
-		// clear focused planet
-		sim.isPlanetFocused = false
-
 		// update offsets
-		sim.screen.offset[0] += float64(dx)
-		sim.screen.offset[1] += float64(dy)
+		sim.planetsOffset[0] += float64(dx)
+		sim.planetsOffset[1] += float64(dy)
 
-		// move planets
+		// move planet images
 		for _, planet := range sim.planets {
 			planet.geometry.Translate(float64(dx), float64(dy))
 		}

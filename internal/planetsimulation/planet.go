@@ -20,7 +20,7 @@ type Planet struct {
 	image           *ebiten.Image
 	geometry        ebiten.GeoM
 	traces          [][]int
-	traceWidth      float32
+	traceWidth      float64
 	antialiasTraces bool
 	tickCount       int
 	traceEveryNTick int // every Nth tick
@@ -35,27 +35,20 @@ func (p *Planet) translate(dx float64, dy float64) {
 	p.geometry.Translate(dx, dy)
 }
 
-func (p *Planet) setPositionOnStart(x float64, y float64, offset []float64) {
-	p.x = x
-	p.y = y
-
-	// center circle
-	p.geometry.Translate(x-p.radius, y-p.radius)
-	// adjust for offset
-	p.geometry.Translate(offset[0], offset[1])
-}
-
 func (p *Planet) setPosition(x float64, y float64) {
 	p.x = x
 	p.y = y
 
 	p.geometry.Reset()
-	p.setPositionOnStart(p.x, p.y, p.offset)
+	// center circle
+	p.geometry.Translate(x-p.radius, y-p.radius)
+	// adjust for offset
+	p.geometry.Translate(p.offset[0], p.offset[1])
 }
 
 func (p *Planet) updateImage() {
 	p.geometry.Reset()
-	p.setPositionOnStart(p.x, p.y, p.offset)
+	p.setPosition(p.x, p.y)
 	radius := float32(p.radius)
 	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
 	vector.FillCircle(p.image, radius, radius, radius, p.color, true)
@@ -71,22 +64,32 @@ func (p *Planet) getColor() (int, int, int) {
 	return r8, g8, b8
 }
 
-func (p *Planet) changeColor(nR int, nG int, nB int) {
+func (p *Planet) changeColor(colorDelta ColorDelta) {
 	r, g, b, a := p.color.RGBA()
 
-	if nR != -1 {
-		r = uint32(nR)
+	if colorDelta.R != nil {
+		r = uint32(*colorDelta.R)
 	}
 
-	if nG != -1 {
-		g = uint32(nG)
+	if colorDelta.G != nil {
+		g = uint32(*colorDelta.G)
 	}
 
-	if nB != -1 {
-		b = uint32(nB)
+	if colorDelta.B != nil {
+		b = uint32(*colorDelta.B)
 	}
 
-	p.color = SetColor(uint8(r), uint8(g), uint8(b), uint8(a))
+	if colorDelta.A != nil {
+		a = uint32(*colorDelta.A)
+	}
+
+	p.color = SetColor(
+		uint8(r),
+		uint8(g),
+		uint8(b),
+		uint8(a),
+	)
+
 	p.updateImage()
 }
 
@@ -101,8 +104,8 @@ func (p *Planet) focus(sim *simulation) {
 	focusedPlanet := sim.planets[sim.focusedPlanetIndex]
 	planetDx := focusedPlanet.x
 	planetDy := focusedPlanet.y
-	sim.screen.offset[0] -= planetDx
-	sim.screen.offset[1] -= planetDy
+	sim.planetsOffset[0] -= planetDx
+	sim.planetsOffset[1] -= planetDy
 
 	for _, planet := range sim.planets {
 		planet.geometry.Translate(-planetDx, -planetDy)
@@ -113,17 +116,16 @@ func (p *Planet) focus(sim *simulation) {
 
 func newPlanet(x float64, y float64, radius float64, mass float64, velocity vector2, color color.Color, offset []float64) *Planet {
 	p := Planet{}
-
 	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
 	p.color = color
 	p.radius = radius
 	p.velocity = velocity
 	p.mass = mass
-
-	p.geometry = ebiten.GeoM{}
-	// adjust for center and screen offset
 	p.offset = offset
-	p.setPositionOnStart(x, y, p.offset)
+	p.geometry = ebiten.GeoM{}
+
+	// adjust for center and screen offset
+	p.setPosition(x, y)
 	p.updateImage()
 
 	p.antialiasTraces = false
@@ -136,39 +138,48 @@ func newPlanet(x float64, y float64, radius float64, mass float64, velocity vect
 
 func (p *Planet) handleFocusedPlanet(sim *simulation, dx float64, dy float64) {
 	if sim.isPlanetFocused {
-		sim.screen.offset[0] += dx
-		sim.screen.offset[1] += dy
+		sim.planetsOffset[0] += dx
+		sim.planetsOffset[1] += dy
 	}
 }
 
-func (p *Planet) Update(sim *simulation, planets []*Planet) error {
+func (p *Planet) Update(sim *simulation, planets []*Planet) {
 	if sim.running {
-		p.handleGravitation(sim, planets)
+		p.handleGravitation(sim)
 	}
-
-	return nil
 }
 
-func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
+func mergePlanets(sim *simulation, p *Planet, otherPlanet *Planet) {
+	// merge planets
+	if p.mass >= otherPlanet.mass {
+		sim.planetsToRemove = append(sim.planetsToRemove, slices.Index(sim.planets, otherPlanet))
+		p.mass += otherPlanet.mass / 2
+		if p.radius <= 1000 {
+			p.radius += otherPlanet.radius / 4
+		}
+
+		p.velocity = p.velocity.add(vector2{
+			((otherPlanet.velocity.x) / p.mass),
+			((otherPlanet.velocity.y) / p.mass),
+		})
+		p.updateImage()
+	}
+}
+
+func (p *Planet) handleGravitation(sim *simulation) {
 	forces := make([]vector2, 0)
 
-	for i := 0; i < len(planets); i++ {
-		otherPlanet := planets[i]
+	for i := 0; i < len(sim.planets); i++ {
+		otherPlanet := sim.planets[i]
 
-		if otherPlanet == p {
+		if slices.Contains(sim.planetsToRemove, i) || otherPlanet == p {
 			continue
 		}
 
 		// calculate distance
-		dx, dy := otherPlanet.x-p.x, otherPlanet.y-p.y
-		distance := math.Sqrt(dx*dx + dy*dy)
-
-		if distance <= float64(p.radius)+float64(otherPlanet.radius) {
-			// merge planets
-			//p.mass += otherPlanet.mass / 2
-			//p.radius += otherPlanet.radius / 2
-			//planets = append(planets[:i], planets[i+1:]...)
-			//return
+		dx, dy, distance, overlaps := overlapsCircle(otherPlanet.x, p.x, otherPlanet.y, p.y, otherPlanet.radius, p.radius)
+		if overlaps {
+			mergePlanets(sim, p, otherPlanet)
 		}
 
 		force := vector2{
@@ -202,7 +213,7 @@ func (p *Planet) handleGravitation(sim *simulation, planets []*Planet) {
 
 	// v = a * t
 	// calculate new velocity
-	time := 1 / ebiten.ActualTPS()
+	time := 1 / ebiten.ActualFPS()
 
 	newVelocity := vector2{
 		x: acceleration.x * time,
@@ -257,7 +268,7 @@ func (p *Planet) Draw(screen *ebiten.Image) {
 			float32(float64(currentTrace[1])+float64(p.offset[1])),
 			float32(float64(nextTrace[0])+float64(p.offset[0])),
 			float32(float64(nextTrace[1])+float64(p.offset[1])),
-			p.traceWidth, p.color, p.antialiasTraces,
+			float32(p.traceWidth), p.color, p.antialiasTraces,
 		)
 	}
 }

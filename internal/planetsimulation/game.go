@@ -15,10 +15,11 @@ type Game struct {
 
 func (game *Game) Update() error {
 	game.simulation.Update()
-	game.controls.handlePlanetCreation(game.simulation, game.ui)
+	game.controls.Update(game.simulation, game.ui)
 	if err := game.ui.Update(game); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -36,18 +37,18 @@ func (game *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHe
 
 func createGame() *Game {
 	game := Game{
-		screenSize: []int{1920, 1080},
+		screenSize: make([]int, 2),
 		controls:   newControls(),
 		ui:         newUI(),
 	}
 
-	game.simulation = newSimulation(game.screenSize)
-
-	//game.simulation.createFirstPlanet()
-
 	// Window Setup
-	ebiten.SetWindowSize(game.screenSize[0], game.screenSize[1])
 	ebiten.SetWindowTitle("Planet Simulation")
+	ebiten.SetFullscreen(true)
+	game.screenSize[0], game.screenSize[1] = ebiten.Monitor().Size()
+
+	// new simulation
+	game.simulation = newSimulation(game.screenSize)
 
 	return &game
 }

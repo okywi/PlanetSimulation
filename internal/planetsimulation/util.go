@@ -29,13 +29,14 @@ func (v vector2) add(v2 vector2) vector2 {
 	}
 }
 
-func SetColor(r uint8, g uint8, b uint8, a uint8) color.RGBA {
-	color := color.RGBA{}
+type ColorDelta struct {
+	R, G, B, A *uint8
+}
 
-	color.R = r
-	color.G = g
-	color.B = b
-	color.A = a
+func SetColor(r uint8, g uint8, b uint8, a uint8) color.NRGBA {
+	color := color.NRGBA{
+		R: r, G: g, B: b, A: a,
+	}
 
 	return color
 }
@@ -51,7 +52,7 @@ func convertColorToInt(color color.Color) (int, int, int, int) {
 	return r8, g8, b8, a8
 }
 
-func overlaps(x, y, xleft int, xright, ytop int, ybottom int) bool {
+func overlapsXY(x int, y int, xleft int, xright, ytop int, ybottom int) bool {
 	overlapsX := false
 	overlapsY := false
 
@@ -67,4 +68,17 @@ func overlaps(x, y, xleft int, xright, ytop int, ybottom int) bool {
 		return true
 	}
 	return false
+}
+
+func overlapsCircle(x1 float64, x2 float64, y1 float64, y2 float64, radius1 float64, radius2 float64) (float64, float64, float64, bool) {
+	overlaps := false
+
+	// calculate distance
+	dx, dy := x1-x2, y1-y2
+	distance := math.Sqrt(dx*dx + dy*dy)
+
+	if distance <= radius1+radius2 {
+		overlaps = true
+	}
+	return dx, dy, distance, overlaps
 }
