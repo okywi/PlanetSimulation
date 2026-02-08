@@ -9,7 +9,7 @@ Basic simulation using Newton's law of universal gravitation
 - [x] Planet Creator
 - [X] Modification of planets
 
-<img width="1920" height="1080" alt="image" src="cover.png" />
+<img width="1920" height="1080" alt="image" src="assets/images/cover.png" />
 
 ## Dependencies
 Check for your system [https://ebitengine.org/en/documents/install.html](here)
