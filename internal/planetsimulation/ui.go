@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"slices"
-	"strconv"
 
 	"github.com/ebitengine/debugui"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -33,18 +32,6 @@ func newUI() *ui {
 	return ui
 }
 
-func (ui *ui) formatFloat(v float64, n int) string {
-	return strconv.FormatFloat(v, 'f', n, 64)
-}
-
-func (ui *ui) getCoords(planetHandler *planetHandler) []float64 {
-	return []float64{
-		-(planetHandler.planetsOffset[0] - planetHandler.defaultPlanetsOffset[0]),
-		planetHandler.planetsOffset[1] - planetHandler.defaultPlanetsOffset[1],
-	}
-
-}
-
 func (ui *ui) Update(sim *simulation, planetHandler *planetHandler) error {
 	ui.layouts = slices.Delete(ui.layouts, 0, len(ui.layouts))
 	var err error
@@ -70,12 +57,12 @@ func (ui *ui) createSystemWindow(ctx *debugui.Context, planetHandler *planetHand
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -1}, []int{-1})
 				ctx.Text("FPS: ")
-				ctx.Text(ui.formatFloat(ebiten.ActualFPS(), 2))
+				ctx.Text(formatFloat(ebiten.ActualFPS(), 2))
 			})
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -1}, []int{-1})
 				ctx.Text("Current TPS: ")
-				ctx.Text(ui.formatFloat(ebiten.ActualTPS(), 2))
+				ctx.Text(formatFloat(ebiten.ActualTPS(), 2))
 			})
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -1}, []int{-1})
@@ -88,12 +75,12 @@ func (ui *ui) createSystemWindow(ctx *debugui.Context, planetHandler *planetHand
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -1}, []int{-1})
 				ctx.Text("x:")
-				ctx.Text(ui.formatFloat(float64(ui.getCoords(planetHandler)[0]), 1))
+				ctx.Text(formatFloat(float64(sim.getCoords(planetHandler)[0]), 1))
 			})
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -1}, []int{-1})
 				ctx.Text("y:")
-				ctx.Text(ui.formatFloat(float64(ui.getCoords(planetHandler)[1]), 1))
+				ctx.Text(formatFloat(float64(sim.getCoords(planetHandler)[1]), 1))
 			})
 		})
 		ctx.Header("Constants", true, func() {
@@ -207,7 +194,7 @@ func (ui *ui) createPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 						cy := float32(bounds.Min.Y) + float32(bounds.Dy())/2
 						r := float32(bounds.Dx()) / 2
 						vector.FillCircle(screen, cx, cy, r, planetHandler.planetCreator.planet.Color, true)
-						planetHandler.updateToCreatePlanet(planetHandler.planetCreator.planet.X, planetHandler.planetCreator.planet.Y)
+						planetHandler.planetCreator.Update(planetHandler.planetCreator.planet.X, planetHandler.planetCreator.planet.Y, planetHandler)
 					})
 				})
 			})
@@ -216,7 +203,7 @@ func (ui *ui) createPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 			planetHandler.addPlanetToPresets(*planetHandler.planetCreator.planet)
 		})
 		ctx.Button("Spawn").On(func() {
-			planetHandler.spawnPlanetAtMouse()
+			planetHandler.planetCreator.spawnPlanet(planetHandler)
 		})
 	})
 }
@@ -296,8 +283,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 			})
 		})
 		ctx.Button("Focus Planet").On(func() {
-			planetHandler.focusedPlanet.index = planetHandler.selectedPlanet.index
-			planetHandler.focusedPlanet.isFocused = true
+			planetHandler.focusPlanet(planetHandler.selectedPlanet.index)
 		})
 		ctx.Header("Color", true, func() {
 			r, g, b := selectedPlanet.getColor()
@@ -382,11 +368,8 @@ func (ui *ui) planetListWindow(ctx *debugui.Context, planetHandler *planetHandle
 					})
 					ctx.IDScope("button "+string(i), func() {
 						ctx.Button(fmt.Sprintf("%s: %.1f, %.1f", planet.Name, planet.X, planet.Y)).On(func() {
-							planetHandler.selectedPlanet.index = i
-							planetHandler.selectedPlanet.isSelected = true
-							planetHandler.focusedPlanet.index = i
-							planetHandler.focusedPlanet.isFocused = true
-							planetHandler.planets[i].focus(planetHandler)
+							planetHandler.selectPlanet(i)
+							planetHandler.focusPlanet(i)
 						})
 					})
 					ctx.Button("X").On(func() {

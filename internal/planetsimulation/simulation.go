@@ -33,49 +33,23 @@ func newSimulationScreen(gameSize []int) *SimulationScreen {
 func newSimulation(gameSize []int) *simulation {
 	screen := newSimulationScreen(gameSize)
 
-	// planet that is created by a click
-	planetCreator := &planetCreator{
-		planet: newPlanet(
-			"Planet 1",
-			0,
-			0,
-			10,
-			5,
-			vector2{0, 0},
-			SetColor(255, 0, 0, 255),
-			[]float64{0, 0},
-		),
-		showPlanet: false,
-	}
-
-	planetHandler := &planetHandler{
-		planetCreator:         planetCreator,
-		defaultPlanetsOffset:  []float64{float64(gameSize[0]) / 2, float64(gameSize[1] / 2)},
-		presetFilePath:        "assets/data/planet_presets.json",
-		planetsToRemove:       make([]int, 0),
-		planetCounter:         0,
-		gravitationalConstant: 10000.0,
-		running:               true,
-	}
-	planetHandler.planetsOffset = []float64{planetHandler.defaultPlanetsOffset[0], planetHandler.defaultPlanetsOffset[1]}
-	planetHandler.loadPlanetPresetsFromFile()
-
-	simulationPresets := &simulationPresets{
-		filePath: "assets/data/simulation_presets.json",
-	}
-
 	sim := &simulation{
 		screen:            screen,
 		gameSize:          gameSize,
-		simulationPresets: simulationPresets,
-		planetHandler:     planetHandler,
+		simulationPresets: newSimulationPresets(),
+		planetHandler:     newPlanetHandler(gameSize),
 		shouldReset:       false,
 		tps:               120,
 	}
 
-	simulationPresets.loadSimulationPresetsFromFile()
-
 	return sim
+}
+
+func (sim *simulation) getCoords(planetHandler *planetHandler) []float64 {
+	return []float64{
+		-(planetHandler.planetsOffset[0] - planetHandler.defaultPlanetsOffset[0]),
+		planetHandler.planetsOffset[1] - planetHandler.defaultPlanetsOffset[1],
+	}
 }
 
 func (sim *simulation) handleReset() {

@@ -37,15 +37,14 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, planetHandler *planetHa
 			}
 		}
 
-		isSelected := overlapsXY(
+		mouseOverlapsPlanet := overlapsXY(
 			x, y,
 			int(planet.X)-int(planet.Radius), int(planet.X)+int(planet.Radius),
 			int(planet.Y)-int(planet.Radius), int(planet.Y)+int(planet.Radius),
 		)
 
-		if isSelected {
-			planetHandler.selectedPlanet.index = i
-			planetHandler.selectedPlanet.isSelected = true
+		if mouseOverlapsPlanet {
+			planetHandler.selectPlanet(i)
 			return true
 		}
 	}
@@ -94,7 +93,7 @@ func (controls *controls) handlePlanetCreation(planetHandler *planetHandler, ui 
 			return
 		}
 
-		planetHandler.updateToCreatePlanet(float64(selectedX), float64(selectedY))
+		planetHandler.planetCreator.Update(float64(selectedX), float64(selectedY), planetHandler)
 		planetHandler.planetCreator.showPlanet = true
 	}
 

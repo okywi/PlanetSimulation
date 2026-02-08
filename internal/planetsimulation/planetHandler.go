@@ -2,20 +2,11 @@ package planetsimulation
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
-
-type planetCreator struct {
-	planet     *Planet
-	showPlanet bool
-}
 
 type planetHandler struct {
 	planets               []*Planet
@@ -42,43 +33,21 @@ type selectedPlanet struct {
 	isSelected bool
 }
 
-func (handler *planetHandler) spawnPlanetAtMouse() {
-	// check if would collide on spawn
-	for _, planet := range handler.planets {
-		toCreatePlanet := handler.planetCreator.planet
-		if _, _, _, overlaps := overlapsCircle(planet.X, toCreatePlanet.X, planet.Y, toCreatePlanet.Y, planet.Radius, toCreatePlanet.Radius); overlaps {
-			return
-		}
+func newPlanetHandler(gameSize []int) *planetHandler {
+	// planet that is created by a click
+	planetHandler := &planetHandler{
+		planetCreator:         newPlanetCreator(),
+		defaultPlanetsOffset:  []float64{float64(gameSize[0]) / 2, float64(gameSize[1] / 2)},
+		presetFilePath:        "assets/data/planet_presets.json",
+		planetsToRemove:       make([]int, 0),
+		planetCounter:         0,
+		gravitationalConstant: 10000.0,
+		running:               true,
 	}
+	planetHandler.planetsOffset = []float64{planetHandler.defaultPlanetsOffset[0], planetHandler.defaultPlanetsOffset[1]}
+	planetHandler.loadPlanetPresetsFromFile()
 
-	planetInCreator := handler.planetCreator.planet
-	newPlanet := newPlanet(
-		planetInCreator.Name,
-		planetInCreator.X,
-		planetInCreator.Y,
-		planetInCreator.Radius,
-		planetInCreator.Mass,
-		planetInCreator.Velocity,
-		planetInCreator.Color,
-		handler.planetsOffset,
-	)
-
-	handler.planets = append(handler.planets, newPlanet)
-	handler.planetCounter++
-
-	// make planetCreator planet highlight invisible
-	handler.planetCreator.showPlanet = false
-
-	// reset name change of planetCreator
-	handler.planetCreator.planet.HasNameChanged = false
-
-	// select planet if none other planet is selected
-	if !handler.selectedPlanet.isSelected {
-		// should be last element appended
-		handler.selectedPlanet.index = len(handler.planets) - 1
-		handler.selectedPlanet.isSelected = true
-		return
-	}
+	return planetHandler
 }
 
 func (handler *planetHandler) handlePlanetDeletion() {
@@ -112,6 +81,16 @@ func (handler *planetHandler) updatePlanets() {
 	}
 }
 
+func (handler *planetHandler) selectPlanet(planetIndex int) {
+	handler.selectedPlanet.index = planetIndex
+	handler.selectedPlanet.isSelected = true
+}
+
+func (handler *planetHandler) focusPlanet(planetIndex int) {
+	handler.focusedPlanet.index = planetIndex
+	handler.focusedPlanet.isFocused = true
+}
+
 func (handler *planetHandler) removeSelectedPlanet() {
 	handler.planetsToRemove = append(handler.planetsToRemove, handler.selectedPlanet.index)
 	handler.selectedPlanet.isSelected = false
@@ -130,57 +109,17 @@ func (handler *planetHandler) returnToOrigin() {
 	}
 }
 
-func (handler *planetHandler) updateToCreatePlanet(x float64, y float64) {
-	planetCreator := handler.planetCreator
-	if !planetCreator.planet.HasNameChanged {
-		planetCreator.planet.Name = fmt.Sprintf("Planet %d", handler.planetCounter+1)
-	}
-	// set x
-	planetCreator.planet.X = x
-	planetCreator.planet.Y = y
-
-	planet := planetCreator.planet
-	radius := float32(planet.Radius)
-
-	r, g, b, _ := convertColorToInt(planet.Color)
-
-	transparentColor := SetColor(uint8(r), uint8(g), uint8(b), 100)
-	planetCreator.planet.image = ebiten.NewImage(int(planet.Radius*2), int(planet.Radius*2))
-	vector.FillCircle(planetCreator.planet.image, radius, radius, radius, transparentColor, true)
-
-	planet.geometry.Reset()
-	// center planet
-	planet.geometry.Translate(planet.X-float64(planet.Radius), planet.Y-float64(planet.Radius))
-	// adjust for offset
-	planet.geometry.Translate(handler.planetsOffset[0], handler.planetsOffset[1])
-
-	handler.planetCreator.planet.geometry = planet.geometry
-}
-
 func (handler *planetHandler) savePlanetPresetsToFile() {
-	if err := os.MkdirAll(filepath.Dir(handler.presetFilePath), os.ModePerm); err != nil {
-		log.Printf("Failed to create dir for %s file: %v", handler.presetFilePath, err)
-	}
-
 	content, err := json.MarshalIndent(handler.presetFilePath, "", " ")
 	if err != nil {
 		log.Printf("Failed to marshal planet presets json: %v", err)
 	}
 
-	if err := os.WriteFile(handler.presetFilePath, content, os.ModePerm); err != nil {
-		log.Printf("Failed to create file %s: %v", handler.presetFilePath, err)
-	}
+	writeFile(handler.presetFilePath, content)
 }
 
 func (handler *planetHandler) loadPlanetPresetsFromFile() {
-	if _, err := os.Stat(handler.presetFilePath); err != nil {
-		return
-	}
-
-	content, err := os.ReadFile(handler.presetFilePath)
-	if err != nil {
-		log.Printf("Failed to read file %s: %v", handler.presetFilePath, err)
-	}
+	content := readFile(handler.presetFilePath)
 
 	if err := json.Unmarshal(content, &handler.presets); err != nil {
 		log.Printf("Failed to unmarshal planet presets json: %v", err)

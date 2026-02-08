@@ -2,7 +2,11 @@ package planetsimulation
 
 import (
 	"image/color"
+	"log"
 	"math"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
 type vector2 struct {
@@ -81,4 +85,30 @@ func overlapsCircle(x1 float64, x2 float64, y1 float64, y2 float64, radius1 floa
 		overlaps = true
 	}
 	return dx, dy, distance, overlaps
+}
+
+func formatFloat(v float64, n int) string {
+	return strconv.FormatFloat(v, 'f', n, 64)
+}
+
+func readFile(path string) []byte {
+	if _, err := os.Stat(path); err != nil {
+		return []byte{}
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("Failed to read file %s: %v", path, err)
+	}
+	return content
+}
+
+func writeFile(path string, content []byte) {
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		log.Printf("Failed to create dir for %s file: %v", path, err)
+	}
+
+	if err := os.WriteFile(path, content, os.ModePerm); err != nil {
+		log.Printf("Failed to create file %s: %v", path, err)
+	}
 }

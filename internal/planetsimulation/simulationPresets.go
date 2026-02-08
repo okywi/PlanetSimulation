@@ -3,8 +3,6 @@ package planetsimulation
 import (
 	"encoding/json"
 	"log"
-	"os"
-	"path/filepath"
 	"slices"
 )
 
@@ -19,6 +17,15 @@ type simulationPresets struct {
 type simulationPreset struct {
 	Name    string
 	Planets []*Planet
+}
+
+func newSimulationPresets() *simulationPresets {
+	simulationPresets := &simulationPresets{
+		filePath: "assets/data/simulation_presets.json",
+	}
+	simulationPresets.loadSimulationPresetsFromFile()
+
+	return simulationPresets
 }
 
 func (presets *simulationPresets) saveSimulationPreset(planetHandler *planetHandler) {
@@ -43,7 +50,6 @@ func (presets *simulationPresets) removeSimulationPreset(i int) {
 func (presets *simulationPresets) handleLoadSimulationPreset(planetHandler *planetHandler, i int) {
 	if presets.shouldLoadSimulation {
 		for _, planet := range presets.Presets[i].Planets {
-
 			planetHandler.planets = append(planetHandler.planets, newPlanet(
 				planet.Name,
 				planet.X,
@@ -62,15 +68,7 @@ func (presets *simulationPresets) handleLoadSimulationPreset(planetHandler *plan
 }
 
 func (presets *simulationPresets) loadSimulationPresetsFromFile() {
-	filePath := presets.filePath
-	if _, err := os.Stat(filePath); err != nil {
-		return
-	}
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Printf("Failed to read file %s: %v", filePath, err)
-	}
+	content := readFile(presets.filePath)
 
 	if err := json.Unmarshal(content, &presets); err != nil {
 		log.Printf("Failed to unmarshal planet presets json: %v", err)
@@ -78,19 +76,11 @@ func (presets *simulationPresets) loadSimulationPresetsFromFile() {
 }
 
 func (presets *simulationPresets) saveSimulationPresetsToFile() {
-	filePath := presets.filePath
-
-	if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-		log.Printf("Failed to create dir for %s file: %v", filePath, err)
-	}
-
 	content, err := json.MarshalIndent(presets, "", " ")
 
 	if err != nil {
 		log.Printf("Failed to marshal planet presets json: %v", err)
 	}
 
-	if err := os.WriteFile(filePath, content, os.ModePerm); err != nil {
-		log.Printf("Failed to create file %s: %v", filePath, err)
-	}
+	writeFile(presets.filePath, content)
 }
