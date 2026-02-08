@@ -102,18 +102,18 @@ func (p *Planet) clearTraces() {
 func (p *Planet) focus(sim *simulation) {
 	sim.returnToOrigin()
 
-	if sim.focusedPlanetIndex >= len(sim.planets) {
+	if sim.planetHandler.focusedPlanet.index >= len(sim.planetHandler.planets) {
 		return
 	}
 
 	// move to planet
-	focusedPlanet := sim.planets[sim.focusedPlanetIndex]
+	focusedPlanet := sim.planetHandler.planets[sim.planetHandler.focusedPlanet.index]
 	planetDx := focusedPlanet.X
 	planetDy := focusedPlanet.Y
-	sim.planetsOffset[0] -= planetDx
-	sim.planetsOffset[1] -= planetDy
+	sim.planetHandler.planetsOffset[0] -= planetDx
+	sim.planetHandler.planetsOffset[1] -= planetDy
 
-	for _, planet := range sim.planets {
+	for _, planet := range sim.planetHandler.planets {
 		planet.geometry.Translate(-planetDx, -planetDy)
 	}
 
@@ -144,9 +144,9 @@ func newPlanet(name string, x float64, y float64, radius float64, mass float64, 
 }
 
 func (p *Planet) handleFocusedPlanet(sim *simulation, dx float64, dy float64) {
-	if sim.isPlanetFocused {
-		sim.planetsOffset[0] += dx
-		sim.planetsOffset[1] += dy
+	if sim.planetHandler.focusedPlanet.isFocused {
+		sim.planetHandler.planetsOffset[0] += dx
+		sim.planetHandler.planetsOffset[1] += dy
 	}
 }
 
@@ -159,7 +159,7 @@ func (p *Planet) Update(sim *simulation, planets []*Planet) {
 func mergePlanets(sim *simulation, p *Planet, otherPlanet *Planet) {
 	// merge planets
 	if p.Mass >= otherPlanet.Mass {
-		sim.planetsToRemove = append(sim.planetsToRemove, slices.Index(sim.planets, otherPlanet))
+		sim.planetHandler.planetsToRemove = append(sim.planetHandler.planetsToRemove, slices.Index(sim.planetHandler.planets, otherPlanet))
 		p.Mass += otherPlanet.Mass / 2
 		if p.Radius <= 1000 {
 			p.Radius += otherPlanet.Radius / 4
@@ -176,10 +176,10 @@ func mergePlanets(sim *simulation, p *Planet, otherPlanet *Planet) {
 func (p *Planet) handleGravitation(sim *simulation) {
 	forces := make([]vector2, 0)
 
-	for i := 0; i < len(sim.planets); i++ {
-		otherPlanet := sim.planets[i]
+	for i := 0; i < len(sim.planetHandler.planets); i++ {
+		otherPlanet := sim.planetHandler.planets[i]
 
-		if slices.Contains(sim.planetsToRemove, i) || otherPlanet == p {
+		if slices.Contains(sim.planetHandler.planetsToRemove, i) || otherPlanet == p {
 			continue
 		}
 

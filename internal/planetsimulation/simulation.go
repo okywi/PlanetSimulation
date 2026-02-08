@@ -18,21 +18,40 @@ type SimulationScreen struct {
 	geometry ebiten.GeoM
 }
 
-type toCreatePlanet struct {
-	x        float64
-	y        float64
-	radius   float64
-	mass     float64
-	velocity vector2
-	color    color.Color
-	shown    bool
-	image    *ebiten.Image
-	geometry ebiten.GeoM
-}
-
 type planetCreator struct {
 	planet     *Planet
 	showPlanet bool
+}
+
+type planetHandler struct {
+	planets              []*Planet
+	presets              []*Planet
+	presetFilePath       string
+	planetsOffset        []float64
+	planetCounter        int
+	planetCreator        *planetCreator
+	planetsToRemove      []int
+	defaultPlanetsOffset []float64
+	selectedPlanet       selectedPlanet
+	focusedPlanet        focusedPlanet
+}
+
+type focusedPlanet struct {
+	isFocused bool
+	index     int
+}
+
+type selectedPlanet struct {
+	index      int
+	isSelected bool
+}
+
+type simulationPresets struct {
+	Presets              []*simulationPreset
+	newPresetName        string
+	presetIndex          int
+	shouldLoadSimulation bool
+	filePath             string
 }
 
 type simulationPreset struct {
@@ -41,30 +60,14 @@ type simulationPreset struct {
 }
 
 type simulation struct {
-	screen                       *SimulationScreen
-	gameSize                     []int
-	currentScale                 float64
-	planets                      []*Planet
-	planetPresets                []*Planet
-	planetPresetPath             string
-	planetsOffset                []float64
-	simulationPresets            []*simulationPreset
-	currentSimulationPresetName  string
-	currentSimulationPresetIndex int
-	shouldLoadSimulation         bool
-	simulationPresetPath         string
-	defaultOffset                []float64
-	planetCounter                int
-	planetCreator                *planetCreator
-	gravitationalConstant        float64
-	shouldReset                  bool
-	running                      bool
-	selectedPlanetIndex          int
-	isPlanetSelected             bool
-	focusedPlanetIndex           int
-	isPlanetFocused              bool
-	planetsToRemove              []int
-	tps                          int
+	screen                *SimulationScreen
+	gameSize              []int
+	simulationPresets     *simulationPresets
+	planetHandler         *planetHandler
+	gravitationalConstant float64
+	shouldReset           bool
+	running               bool
+	tps                   int
 }
 
 func newSimulationScreen(gameSize []int) *SimulationScreen {
@@ -94,21 +97,29 @@ func newSimulation(gameSize []int) *simulation {
 		showPlanet: false,
 	}
 
+	planetHandler := &planetHandler{
+		planetCreator:        planetCreator,
+		defaultPlanetsOffset: []float64{float64(gameSize[0]) / 2, float64(gameSize[1] / 2)},
+		presetFilePath:       "assets/data/planet_presets.json",
+		planetsToRemove:      make([]int, 0),
+		planetCounter:        0,
+	}
+	planetHandler.planetsOffset = []float64{planetHandler.defaultPlanetsOffset[0], planetHandler.defaultPlanetsOffset[1]}
+
+	simulationPresets := &simulationPresets{
+		filePath: "assets/data/simulation_presets.json",
+	}
+
 	sim := &simulation{
 		screen:                screen,
 		gameSize:              gameSize,
-		planetCreator:         planetCreator,
-		defaultOffset:         []float64{float64(gameSize[0]) / 2, float64(gameSize[1] / 2)},
-		planetPresetPath:      "assets/data/planet_presets.json",
-		simulationPresetPath:  "assets/data/simulation_presets.json",
-		simulationPresets:     []*simulationPreset{},
+		simulationPresets:     simulationPresets,
+		planetHandler:         planetHandler,
 		gravitationalConstant: 10000.0,
 		shouldReset:           false,
 		running:               true,
 		tps:                   120,
-		planetsToRemove:       make([]int, 0),
 	}
-	sim.planetsOffset = []float64{sim.defaultOffset[0], sim.defaultOffset[1]}
 
 	sim.loadPlanetPresetsFromFile()
 	sim.loadSimulationPresetsFromFile()
@@ -118,50 +129,52 @@ func newSimulation(gameSize []int) *simulation {
 
 func (sim *simulation) saveSimulationPreset() {
 	planets := []*Planet{}
-	for _, planet := range sim.planets {
+	for _, planet := range sim.planetHandler.planets {
 		planets = append(planets, *&planet)
 	}
 
-	sim.simulationPresets = append(sim.simulationPresets, &simulationPreset{
-		Name:    sim.currentSimulationPresetName,
+	sim.simulationPresets.Presets = append(sim.simulationPresets.Presets, &simulationPreset{
+		Name:    sim.simulationPresets.newPresetName,
 		Planets: planets,
 	})
 	sim.saveSimulationPresets()
 }
 
 func (sim *simulation) removeSimulationPreset(i int) {
-	sim.simulationPresets = slices.Delete(sim.simulationPresets, i, i+1)
+	sim.simulationPresets.Presets = slices.Delete(sim.simulationPresets.Presets, i, i+1)
 
 	sim.saveSimulationPresets()
 }
 
-func (sim *simulation) loadSimulationPreset(i int) {
-	for _, planet := range sim.simulationPresets[i].Planets {
+func (sim *simulation) handleLoadSimulationPreset(i int) {
+	if sim.simulationPresets.shouldLoadSimulation {
+		for _, planet := range sim.simulationPresets.Presets[i].Planets {
 
-		sim.planets = append(sim.planets, newPlanet(
-			planet.Name,
-			planet.X,
-			planet.Y,
-			planet.Radius,
-			planet.Mass,
-			planet.Velocity,
-			planet.Color,
-			sim.planetsOffset,
-		))
+			sim.planetHandler.planets = append(sim.planetHandler.planets, newPlanet(
+				planet.Name,
+				planet.X,
+				planet.Y,
+				planet.Radius,
+				planet.Mass,
+				planet.Velocity,
+				planet.Color,
+				sim.planetHandler.planetsOffset,
+			))
+		}
+
+		sim.running = false
+		sim.simulationPresets.shouldLoadSimulation = false
 	}
-
-	sim.running = false
-	sim.shouldLoadSimulation = false
 }
 
 func (sim *simulation) loadSimulationPresetsFromFile() {
-	if _, err := os.Stat(sim.simulationPresetPath); err != nil {
+	if _, err := os.Stat(sim.simulationPresets.filePath); err != nil {
 		return
 	}
 
-	content, err := os.ReadFile(sim.simulationPresetPath)
+	content, err := os.ReadFile(sim.simulationPresets.filePath)
 	if err != nil {
-		log.Printf("Failed to read file %s: %v", sim.simulationPresetPath, err)
+		log.Printf("Failed to read file %s: %v", sim.simulationPresets.filePath, err)
 	}
 
 	if err := json.Unmarshal(content, &sim.simulationPresets); err != nil {
@@ -170,8 +183,8 @@ func (sim *simulation) loadSimulationPresetsFromFile() {
 }
 
 func (sim *simulation) saveSimulationPresets() {
-	if err := os.MkdirAll(filepath.Dir(sim.simulationPresetPath), os.ModePerm); err != nil {
-		log.Printf("Failed to create dir for %s file: %v", sim.simulationPresetPath, err)
+	if err := os.MkdirAll(filepath.Dir(sim.simulationPresets.filePath), os.ModePerm); err != nil {
+		log.Printf("Failed to create dir for %s file: %v", sim.simulationPresets.filePath, err)
 	}
 
 	content, err := json.MarshalIndent(sim.simulationPresets, "", " ")
@@ -180,120 +193,121 @@ func (sim *simulation) saveSimulationPresets() {
 		log.Printf("Failed to marshal planet presets json: %v", err)
 	}
 
-	if err := os.WriteFile(sim.simulationPresetPath, content, os.ModePerm); err != nil {
-		log.Printf("Failed to create file %s: %v", sim.simulationPresetPath, err)
+	if err := os.WriteFile(sim.simulationPresets.filePath, content, os.ModePerm); err != nil {
+		log.Printf("Failed to create file %s: %v", sim.simulationPresets.filePath, err)
 	}
 }
 
 func (sim *simulation) addPlanetToPlanetPresets(planetToAdd Planet) {
 	// replace if same name
-	for i, planet := range sim.planetPresets {
+	for i, planet := range sim.planetHandler.presets {
 		if planet.Name == planetToAdd.Name {
-			sim.planetPresets[i] = &planetToAdd
+			sim.planetHandler.presets[i] = &planetToAdd
 			sim.savePlanetPresetsToFile()
 			return
 		}
 	}
 
-	sim.planetPresets = append(sim.planetPresets, &planetToAdd)
+	sim.planetHandler.presets = append(sim.planetHandler.presets, &planetToAdd)
 
 	sim.savePlanetPresetsToFile()
 }
 
 func (sim *simulation) savePlanetPresetsToFile() {
-	if err := os.MkdirAll(filepath.Dir(sim.planetPresetPath), os.ModePerm); err != nil {
-		log.Printf("Failed to create dir for %s file: %v", sim.planetPresetPath, err)
+	if err := os.MkdirAll(filepath.Dir(sim.planetHandler.presetFilePath), os.ModePerm); err != nil {
+		log.Printf("Failed to create dir for %s file: %v", sim.planetHandler.presetFilePath, err)
 	}
 
-	content, err := json.MarshalIndent(sim.planetPresets, "", " ")
+	content, err := json.MarshalIndent(sim.planetHandler.presetFilePath, "", " ")
 	if err != nil {
 		log.Printf("Failed to marshal planet presets json: %v", err)
 	}
 
-	if err := os.WriteFile(sim.planetPresetPath, content, os.ModePerm); err != nil {
-		log.Printf("Failed to create file %s: %v", sim.planetPresetPath, err)
+	if err := os.WriteFile(sim.planetHandler.presetFilePath, content, os.ModePerm); err != nil {
+		log.Printf("Failed to create file %s: %v", sim.planetHandler.presetFilePath, err)
 	}
 }
 
 func (sim *simulation) loadPlanetPresetsFromFile() {
-	if _, err := os.Stat(sim.planetPresetPath); err != nil {
+	if _, err := os.Stat(sim.planetHandler.presetFilePath); err != nil {
 		return
 	}
 
-	content, err := os.ReadFile(sim.planetPresetPath)
+	content, err := os.ReadFile(sim.planetHandler.presetFilePath)
 	if err != nil {
-		log.Printf("Failed to read file %s: %v", sim.planetPresetPath, err)
+		log.Printf("Failed to read file %s: %v", sim.planetHandler.presetFilePath, err)
 	}
 
-	if err := json.Unmarshal(content, &sim.planetPresets); err != nil {
+	if err := json.Unmarshal(content, &sim.planetHandler.presets); err != nil {
 		log.Printf("Failed to unmarshal planet presets json: %v", err)
 	}
 }
 
 func (sim *simulation) returnToOrigin() {
 	// reset planetsOffset
-	dx := sim.planetsOffset[0] - sim.defaultOffset[0]
-	dy := sim.planetsOffset[1] - sim.defaultOffset[1]
-	sim.planetsOffset[0] -= dx
-	sim.planetsOffset[1] -= dy
+	dx := sim.planetHandler.planetsOffset[0] - sim.planetHandler.defaultPlanetsOffset[0]
+	dy := sim.planetHandler.planetsOffset[1] - sim.planetHandler.defaultPlanetsOffset[1]
+	sim.planetHandler.planetsOffset[0] -= dx
+	sim.planetHandler.planetsOffset[1] -= dy
 
 	// move planet images as well
-	for _, planet := range sim.planets {
+	for _, planet := range sim.planetHandler.planets {
 		planet.geometry.Translate(float64(-dx), float64(-dy))
 	}
 }
 
 func (sim *simulation) spawnPlanet() {
 	// check if would collide on spawn
-	for _, planet := range sim.planets {
-		toCreatePlanet := sim.planetCreator.planet
+	for _, planet := range sim.planetHandler.planets {
+		toCreatePlanet := sim.planetHandler.planetCreator.planet
 		if _, _, _, overlaps := overlapsCircle(planet.X, toCreatePlanet.X, planet.Y, toCreatePlanet.Y, planet.Radius, toCreatePlanet.Radius); overlaps {
 			return
 		}
 	}
 
+	planetInCreator := sim.planetHandler.planetCreator.planet
 	newPlanet := newPlanet(
-		sim.planetCreator.planet.Name,
-		sim.planetCreator.planet.X,
-		sim.planetCreator.planet.Y,
-		sim.planetCreator.planet.Radius,
-		sim.planetCreator.planet.Mass,
-		sim.planetCreator.planet.Velocity,
-		sim.planetCreator.planet.Color,
-		sim.planetsOffset,
+		planetInCreator.Name,
+		planetInCreator.X,
+		planetInCreator.Y,
+		planetInCreator.Radius,
+		planetInCreator.Mass,
+		planetInCreator.Velocity,
+		planetInCreator.Color,
+		sim.planetHandler.planetsOffset,
 	)
 
-	sim.planets = append(sim.planets, newPlanet)
-	sim.planetCounter++
+	sim.planetHandler.planets = append(sim.planetHandler.planets, newPlanet)
+	sim.planetHandler.planetCounter++
 
 	// make planetCreator planet highlight invisible
-	sim.planetCreator.showPlanet = false
+	sim.planetHandler.planetCreator.showPlanet = false
 
 	// reset name change of planetCreator
-	sim.planetCreator.planet.HasNameChanged = false
+	sim.planetHandler.planetCreator.planet.HasNameChanged = false
 
 	// select planet if none other planet is selected
-	if !sim.isPlanetSelected {
+	if !sim.planetHandler.selectedPlanet.isSelected {
 		// should be last element appended
-		sim.selectedPlanetIndex = len(sim.planets) - 1
-		sim.isPlanetSelected = true
+		sim.planetHandler.selectedPlanet.index = len(sim.planetHandler.planets) - 1
+		sim.planetHandler.selectedPlanet.isSelected = true
 		return
 	}
 }
 
 func (sim *simulation) handleReset() {
 	if sim.shouldReset {
-		sim.isPlanetSelected = false
-		sim.isPlanetFocused = false
-		sim.planetCreator.showPlanet = false
-		sim.planetCounter = 0
-		sim.planets = slices.Delete(sim.planets, 0, len(sim.planets))
-		dx := sim.planetsOffset[0] - sim.defaultOffset[0]
-		dy := sim.planetsOffset[1] - sim.defaultOffset[1]
-		sim.planetsOffset[0] -= dx
-		sim.planetsOffset[1] -= dy
+		sim.planetHandler.selectedPlanet.isSelected = false
+		sim.planetHandler.focusedPlanet.isFocused = false
+		sim.planetHandler.planetCreator.showPlanet = false
+		sim.planetHandler.planetCounter = 0
+		sim.planetHandler.planets = slices.Delete(sim.planetHandler.planets, 0, len(sim.planetHandler.planets))
+		dx := sim.planetHandler.planetsOffset[0] - sim.planetHandler.defaultPlanetsOffset[0]
+		dy := sim.planetHandler.planetsOffset[1] - sim.planetHandler.defaultPlanetsOffset[1]
+		sim.planetHandler.planetsOffset[0] -= dx
+		sim.planetHandler.planetsOffset[1] -= dy
 
-		for _, planet := range sim.planets {
+		for _, planet := range sim.planetHandler.planets {
 			planet.geometry.Translate(-dx, -dy)
 		}
 
@@ -302,29 +316,28 @@ func (sim *simulation) handleReset() {
 }
 
 func (sim *simulation) handlePlanetDeletion() {
-	if len(sim.planetsToRemove) > 0 {
-		for _, planetIndex := range sim.planetsToRemove {
+	if len(sim.planetHandler.planetsToRemove) > 0 {
+		for _, planetIndex := range sim.planetHandler.planetsToRemove {
 			// remove from planets
-			if sim.selectedPlanetIndex == planetIndex {
-				log.Println("deseleted", sim.selectedPlanetIndex)
-				sim.isPlanetSelected = false
+			if sim.planetHandler.selectedPlanet.index == planetIndex {
+				sim.planetHandler.selectedPlanet.isSelected = false
 			}
-			if sim.focusedPlanetIndex == planetIndex {
-				sim.isPlanetFocused = false
+			if sim.planetHandler.focusedPlanet.index == planetIndex {
+				sim.planetHandler.focusedPlanet.isFocused = false
 			}
 
-			sim.planets = slices.Delete(sim.planets, planetIndex, planetIndex+1)
+			sim.planetHandler.planets = slices.Delete(sim.planetHandler.planets, planetIndex, planetIndex+1)
 
 		}
 
-		sim.planetsToRemove = []int{}
+		sim.planetHandler.planetsToRemove = []int{}
 	}
 }
 
 func (sim *simulation) updatePlanets() {
-	for _, planet := range sim.planets {
-		planet.Update(sim, sim.planets)
-		if sim.isPlanetFocused {
+	for _, planet := range sim.planetHandler.planets {
+		planet.Update(sim, sim.planetHandler.planets)
+		if sim.planetHandler.focusedPlanet.isFocused {
 			planet.focus(sim)
 		}
 	}
@@ -336,45 +349,43 @@ func (sim *simulation) Update() {
 	sim.handleReset()
 	sim.handlePlanetDeletion()
 	sim.updatePlanets()
-	if sim.shouldLoadSimulation {
-		sim.loadSimulationPreset(sim.currentSimulationPresetIndex)
-	}
+	sim.handleLoadSimulationPreset(sim.simulationPresets.presetIndex)
 }
 
 func (sim *simulation) removeSelectedPlanet(ui *ui) {
-	sim.planetsToRemove = append(sim.planetsToRemove, sim.selectedPlanetIndex)
-	sim.isPlanetSelected = false
+	sim.planetHandler.planetsToRemove = append(sim.planetHandler.planetsToRemove, sim.planetHandler.selectedPlanet.index)
+	sim.planetHandler.selectedPlanet.isSelected = false
 }
 
 func (sim *simulation) updateToCreatePlanet(x float64, y float64) {
-	if !sim.planetCreator.planet.HasNameChanged {
-		sim.planetCreator.planet.Name = fmt.Sprintf("Planet %d", sim.planetCounter+1)
+	if !sim.planetHandler.planetCreator.planet.HasNameChanged {
+		sim.planetHandler.planetCreator.planet.Name = fmt.Sprintf("Planet %d", sim.planetHandler.planetCounter+1)
 	}
 	// set x
-	sim.planetCreator.planet.X = x
-	sim.planetCreator.planet.Y = y
+	sim.planetHandler.planetCreator.planet.X = x
+	sim.planetHandler.planetCreator.planet.Y = y
 
-	planet := sim.planetCreator.planet
+	planet := sim.planetHandler.planetCreator.planet
 	radius := float32(planet.Radius)
 
 	r, g, b, _ := convertColorToInt(planet.Color)
 
 	transparentColor := SetColor(uint8(r), uint8(g), uint8(b), 100)
-	sim.planetCreator.planet.image = ebiten.NewImage(int(planet.Radius*2), int(planet.Radius*2))
-	vector.FillCircle(sim.planetCreator.planet.image, radius, radius, radius, transparentColor, true)
+	sim.planetHandler.planetCreator.planet.image = ebiten.NewImage(int(planet.Radius*2), int(planet.Radius*2))
+	vector.FillCircle(sim.planetHandler.planetCreator.planet.image, radius, radius, radius, transparentColor, true)
 
 	planet.geometry.Reset()
 	// center planet
 	planet.geometry.Translate(planet.X-float64(planet.Radius), planet.Y-float64(planet.Radius))
 	// adjust for offset
-	planet.geometry.Translate(sim.planetsOffset[0], sim.planetsOffset[1])
+	planet.geometry.Translate(sim.planetHandler.planetsOffset[0], sim.planetHandler.planetsOffset[1])
 
-	sim.planetCreator.planet.geometry = planet.geometry
+	sim.planetHandler.planetCreator.planet.geometry = planet.geometry
 }
 
 func (sim *simulation) drawToCreatePlanet(screen *ebiten.Image) {
-	screen.DrawImage(sim.planetCreator.planet.image, &ebiten.DrawImageOptions{
-		GeoM: sim.planetCreator.planet.geometry,
+	screen.DrawImage(sim.planetHandler.planetCreator.planet.image, &ebiten.DrawImageOptions{
+		GeoM: sim.planetHandler.planetCreator.planet.geometry,
 	})
 }
 
@@ -382,14 +393,14 @@ func (sim *simulation) Draw(gameScreen *ebiten.Image) {
 	sim.screen.image.Fill(color.Black)
 
 	// draw planets
-	for _, planet := range sim.planets {
+	for _, planet := range sim.planetHandler.planets {
 		if planet != nil {
 			planet.Draw(sim.screen.image)
 		}
 	}
 
 	// draw toCreatePlanet
-	if sim.planetCreator.showPlanet {
+	if sim.planetHandler.planetCreator.showPlanet {
 		sim.drawToCreatePlanet(sim.screen.image)
 	}
 
