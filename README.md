@@ -10,7 +10,7 @@ Basic planet simulation using Newton's law of universal gravitation
 - [X] Modification of planets
 
 ## Showcase
-https://github.com/okywi/PlanetSimulation/blob/main/assets/videos/showcase.mp4
+https://github.com/user-attachments/assets/9ca5614d-3608-46df-a1f9-e6ca898b03d6
 
 ## Dependencies
 Check for your system [here](https://ebitengine.org/en/documents/install.html).
