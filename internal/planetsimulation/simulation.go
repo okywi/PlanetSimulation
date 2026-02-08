@@ -77,7 +77,7 @@ func (sim *simulation) Update() {
 
 	sim.handleReset()
 	sim.planetHandler.Update()
-	sim.simulationPresets.handleLoadSimulationPreset(sim.planetHandler, sim.simulationPresets.presetIndex)
+	sim.simulationPresets.handleLoad(sim.planetHandler, sim.simulationPresets.presetIndex)
 }
 
 func (sim *simulation) Draw(gameScreen *ebiten.Image) {

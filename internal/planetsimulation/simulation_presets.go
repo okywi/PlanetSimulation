@@ -23,7 +23,7 @@ func newSimulationPresets() *simulationPresets {
 	simulationPresets := &simulationPresets{
 		filePath: "assets/data/simulation_presets.json",
 	}
-	simulationPresets.loadSimulationPresetsFromFile()
+	simulationPresets.loadFromFile()
 
 	return simulationPresets
 }
@@ -38,16 +38,16 @@ func (presets *simulationPresets) saveSimulationPreset(planetHandler *planetHand
 		Name:    presets.newPresetName,
 		Planets: planets,
 	})
-	presets.saveSimulationPresetsToFile()
+	presets.saveToFile()
 }
 
 func (presets *simulationPresets) removeSimulationPreset(i int) {
 	presets.Presets = slices.Delete(presets.Presets, i, i+1)
 
-	presets.saveSimulationPresetsToFile()
+	presets.saveToFile()
 }
 
-func (presets *simulationPresets) handleLoadSimulationPreset(planetHandler *planetHandler, i int) {
+func (presets *simulationPresets) handleLoad(planetHandler *planetHandler, i int) {
 	if presets.shouldLoadSimulation {
 		for _, planet := range presets.Presets[i].Planets {
 			planetHandler.planets = append(planetHandler.planets, newPlanet(
@@ -67,7 +67,7 @@ func (presets *simulationPresets) handleLoadSimulationPreset(planetHandler *plan
 	}
 }
 
-func (presets *simulationPresets) loadSimulationPresetsFromFile() {
+func (presets *simulationPresets) loadFromFile() {
 	content := readFile(presets.filePath)
 
 	if err := json.Unmarshal(content, &presets); err != nil {
@@ -75,7 +75,7 @@ func (presets *simulationPresets) loadSimulationPresetsFromFile() {
 	}
 }
 
-func (presets *simulationPresets) saveSimulationPresetsToFile() {
+func (presets *simulationPresets) saveToFile() {
 	content, err := json.MarshalIndent(presets, "", " ")
 
 	if err != nil {

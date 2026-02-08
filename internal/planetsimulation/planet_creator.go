@@ -38,20 +38,18 @@ func (planetCreator *planetCreator) Update(x float64, y float64, planetHandler *
 	planetCreator.planet.Y = y
 
 	planet := planetCreator.planet
-	radius := float32(planet.Radius)
-
-	// update image
-	transparentColor := color.NRGBA{planet.Color.R, planet.Color.B, planet.Color.G, 100}
-	planetCreator.planet.image = ebiten.NewImage(int(planet.Radius*2), int(planet.Radius*2))
-	vector.FillCircle(planetCreator.planet.image, radius, radius, radius, transparentColor, true)
-
 	planet.geometry.Reset()
 	// center planet
 	planet.geometry.Translate(planet.X-float64(planet.Radius), planet.Y-float64(planet.Radius))
 	// adjust for offset
 	planet.geometry.Translate(planetHandler.planetsOffset[0], planetHandler.planetsOffset[1])
 
-	planetCreator.planet.geometry = planet.geometry
+	// update image
+	radius := float32(planet.Radius)
+	transparentColor := color.NRGBA{planet.Color.R, planet.Color.G, planet.Color.B, 100}
+	planetCreator.planet.image = ebiten.NewImage(int(planet.Radius*2), int(planet.Radius*2))
+	vector.FillCircle(planetCreator.planet.image, radius, radius, radius, transparentColor, true)
+
 }
 
 func (planetCreator *planetCreator) spawnPlanet(planetHandler *planetHandler) {
