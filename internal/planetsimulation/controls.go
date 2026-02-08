@@ -28,8 +28,8 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int,
 			selectedPlanet := sim.planets[sim.selectedPlanetIndex]
 			isSelectedAgain := overlapsXY(
 				x, y,
-				int(selectedPlanet.x)-int(selectedPlanet.radius), int(selectedPlanet.x)+int(selectedPlanet.radius),
-				int(selectedPlanet.y)-int(selectedPlanet.radius), int(selectedPlanet.y)+int(selectedPlanet.radius),
+				int(selectedPlanet.X)-int(selectedPlanet.Radius), int(selectedPlanet.X)+int(selectedPlanet.Radius),
+				int(selectedPlanet.Y)-int(selectedPlanet.Radius), int(selectedPlanet.Y)+int(selectedPlanet.Radius),
 			)
 			if isSelectedAgain {
 				sim.isPlanetSelected = false
@@ -39,8 +39,8 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int,
 
 		isSelected := overlapsXY(
 			x, y,
-			int(planet.x)-int(planet.radius), int(planet.x)+int(planet.radius),
-			int(planet.y)-int(planet.radius), int(planet.y)+int(planet.radius),
+			int(planet.X)-int(planet.Radius), int(planet.X)+int(planet.Radius),
+			int(planet.Y)-int(planet.Radius), int(planet.Y)+int(planet.Radius),
 		)
 
 		if isSelected {
@@ -134,7 +134,7 @@ func (controls *controls) handleMovement(sim *simulation) {
 
 		// move planet images
 		for _, planet := range sim.planets {
-			planet.geometry.Translate(float64(dx), float64(dy))
+			planet.Geometry.Translate(float64(dx), float64(dy))
 		}
 
 		controls.previousMousePosition = currentMousePosition

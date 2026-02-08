@@ -1,6 +1,7 @@
 package planetsimulation
 
 import (
+	"fmt"
 	"image"
 	"slices"
 	"strconv"
@@ -54,6 +55,8 @@ func (ui *ui) Update(game *Game) error {
 		ui.createSystemWindow(ctx, game)
 		ui.createPlanetWindow(ctx, game)
 		ui.modifyPlanetWindow(ctx, game)
+		ui.planetListWindow(ctx, game)
+		ui.planetPresetsWindow(ctx, game)
 		return err
 	})
 	return err
@@ -126,58 +129,65 @@ func (ui *ui) createSystemWindow(ctx *debugui.Context, game *Game) {
 }
 
 func (ui *ui) createPlanetWindow(ctx *debugui.Context, game *Game) {
-	ctx.Window("Create Planet", image.Rect(0, 340, 250, 620), func(layout debugui.ContainerLayout) {
+	ctx.Window("Create Planet", image.Rect(0, 330, 240, 630), func(layout debugui.ContainerLayout) {
 		ui.layouts = append(ui.layouts, layout.BodyBounds)
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
+			ctx.Text("Name: ")
+			ctx.TextField(&game.simulation.planetCreator.planet.Name).On(func() {
+				game.simulation.planetCreator.planet.HasNameChanged = true
+			})
+		})
+		ctx.GridCell(func(bounds image.Rectangle) {
+			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("x: ")
-			ctx.NumberFieldF(&game.simulation.planetCreator.planet.x, 1.0, 1)
+			ctx.NumberFieldF(&game.simulation.planetCreator.planet.X, 1.0, 1)
 		})
 		// fake negate
-		y := -game.simulation.planetCreator.planet.y
+		y := -game.simulation.planetCreator.planet.Y
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("y: ")
 			ctx.NumberFieldF(&y, 1.0, 1).On(func() {
-				game.simulation.planetCreator.planet.y = -y
+				game.simulation.planetCreator.planet.Y = -y
 			})
 		})
-		radius := game.simulation.planetCreator.planet.radius
+		radius := game.simulation.planetCreator.planet.Radius
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("radius: ")
 			ctx.NumberFieldF(&radius, 1.0, 1).On(func() {
 				if radius > 0 && radius < 1000 {
-					game.simulation.planetCreator.planet.radius = radius
+					game.simulation.planetCreator.planet.Radius = radius
 				}
 			})
 		})
-		mass := game.simulation.planetCreator.planet.mass
+		mass := game.simulation.planetCreator.planet.Mass
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("mass: ")
 			ctx.NumberFieldF(&mass, 1.0, 1).On(func() {
 				if mass > 0 {
-					game.simulation.planetCreator.planet.mass = mass
+					game.simulation.planetCreator.planet.Mass = mass
 				}
 			})
 		})
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("velocity x: ")
-			ctx.NumberFieldF(&game.simulation.planetCreator.planet.velocity.x, 1.0, 1)
+			ctx.NumberFieldF(&game.simulation.planetCreator.planet.Velocity.X, 1.0, 1)
 		})
 		// fake negate
-		velocityY := -game.simulation.planetCreator.planet.velocity.y
+		velocityY := -game.simulation.planetCreator.planet.Velocity.Y
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("velocity y: ")
 			ctx.NumberFieldF(&velocityY, 1.0, 1).On(func() {
-				game.simulation.planetCreator.planet.velocity.y = -velocityY
+				game.simulation.planetCreator.planet.Velocity.Y = -velocityY
 			})
 		})
 		ctx.Header("Color", true, func() {
-			r, g, b, _ := convertColorToInt(game.simulation.planetCreator.planet.color)
+			r, g, b, _ := convertColorToInt(game.simulation.planetCreator.planet.Color)
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-3, -1}, []int{59})
 				ctx.GridCell(func(bounds image.Rectangle) {
@@ -188,18 +198,21 @@ func (ui *ui) createPlanetWindow(ctx *debugui.Context, game *Game) {
 					ctx.Slider(&g, 0, 255, 1)
 					ctx.Text("b: ")
 					ctx.Slider(&b, 0, 255, 1)
-					game.simulation.planetCreator.planet.color = SetColor(uint8(r), uint8(g), uint8(b), 255)
+					game.simulation.planetCreator.planet.Color = SetColor(uint8(r), uint8(g), uint8(b), 255)
 				})
 				ctx.GridCell(func(bounds image.Rectangle) {
 					ctx.DrawOnlyWidget(func(screen *ebiten.Image) {
 						cx := float32(bounds.Min.X) + float32(bounds.Dx())/2
 						cy := float32(bounds.Min.Y) + float32(bounds.Dy())/2
 						r := float32(bounds.Dx()) / 2
-						vector.FillCircle(screen, cx, cy, r, game.simulation.planetCreator.planet.color, true)
-						game.simulation.updateToCreatePlanet(game.simulation.planetCreator.planet.x, game.simulation.planetCreator.planet.y)
+						vector.FillCircle(screen, cx, cy, r, game.simulation.planetCreator.planet.Color, true)
+						game.simulation.updateToCreatePlanet(game.simulation.planetCreator.planet.X, game.simulation.planetCreator.planet.Y)
 					})
 				})
 			})
+		})
+		ctx.Button("Save to presets").On(func() {
+			game.simulation.addPlanetToPlanetPresets(*game.simulation.planetCreator.planet)
 		})
 		ctx.Button("Spawn").On(func() {
 			game.simulation.spawnPlanet()
@@ -216,62 +229,68 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 	}
 
 	selectedPlanet := game.simulation.planets[game.simulation.selectedPlanetIndex]
-	ctx.Window("Modify Planet", image.Rect(000, 640, 250, 1075), func(layout debugui.ContainerLayout) {
+	ctx.Window("Modify Planet", image.Rect(000, 640, 250, 1070), func(layout debugui.ContainerLayout) {
 		ui.layouts = append(ui.layouts, layout.BodyBounds)
-
+		ctx.GridCell(func(bounds image.Rectangle) {
+			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
+			ctx.Text("Name: ")
+			ctx.TextField(&selectedPlanet.Name).On(func() {
+				selectedPlanet.HasNameChanged = true
+			})
+		})
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2}, []int{-1, -1})
-			x := selectedPlanet.x
+			x := selectedPlanet.X
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 				ctx.Text("x: ")
 				ctx.NumberFieldF(&x, 1.0, 1).On(func() {
-					selectedPlanet.setPosition(x, selectedPlanet.y)
+					selectedPlanet.setPosition(x, selectedPlanet.Y)
 				})
 			})
 			// fake negate
-			y := -selectedPlanet.y
+			y := -selectedPlanet.Y
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 				ctx.Text("y: ")
 				ctx.NumberFieldF(&y, 1.0, 1).On(func() {
-					selectedPlanet.setPosition(selectedPlanet.x, -y)
+					selectedPlanet.setPosition(selectedPlanet.X, -y)
 				})
 			})
 		})
-		radius := selectedPlanet.radius
+		radius := selectedPlanet.Radius
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("radius: ")
 			ctx.NumberFieldF(&radius, 1.0, 1).On(func() {
 				if radius > 0 && radius < 1000 {
-					selectedPlanet.radius = radius
+					selectedPlanet.Radius = radius
 				}
 				selectedPlanet.updateImage()
 			})
 		})
-		mass := selectedPlanet.mass
+		mass := selectedPlanet.Mass
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("mass: ")
 			ctx.NumberFieldF(&mass, 1.0, 1).On(func() {
 				if mass > 0 {
-					selectedPlanet.mass = mass
+					selectedPlanet.Mass = mass
 				}
 			})
 		})
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("velocity x: ")
-			ctx.NumberFieldF(&selectedPlanet.velocity.x, 1.0, 1)
+			ctx.NumberFieldF(&selectedPlanet.Velocity.X, 1.0, 1)
 		})
 		// fake negate
-		velocityY := -selectedPlanet.velocity.y
+		velocityY := -selectedPlanet.Velocity.Y
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
 			ctx.Text("velocity y: ")
 			ctx.NumberFieldF(&velocityY, 1.0, 1).On(func() {
-				selectedPlanet.velocity.y = -velocityY
+				selectedPlanet.Velocity.Y = -velocityY
 			})
 		})
 		ctx.Button("Focus Planet").On(func() {
@@ -305,7 +324,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 						cx := float32(bounds.Min.X) + float32(bounds.Dx())/2
 						cy := float32(bounds.Min.Y) + float32(bounds.Dy())/2
 						r := float32(bounds.Dx()) / 2
-						vector.FillCircle(screen, cx, cy, r, selectedPlanet.color, true)
+						vector.FillCircle(screen, cx, cy, r, selectedPlanet.Color, true)
 					})
 				})
 			})
@@ -314,24 +333,27 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-3, -2}, []int{-1})
 				ctx.Text("trace every Nth tick:")
-				ctx.Slider(&selectedPlanet.traceEveryNTick, 1, 15, 1)
+				ctx.Slider(&selectedPlanet.TraceEveryNTick, 1, 15, 1)
 			})
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-3, -2}, []int{-1})
 				ctx.Text("draw every Nth tick:")
-				ctx.Slider(&selectedPlanet.drawEveryNTick, 1, 15, 1)
+				ctx.Slider(&selectedPlanet.DrawEveryNTick, 1, 15, 1)
 			})
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-3, -2}, []int{-1})
 				ctx.Text("trace width:")
-				ctx.SliderF(&selectedPlanet.traceWidth, 1, 15, 1, 0)
+				ctx.SliderF(&selectedPlanet.TraceWidth, 1, 15, 1, 0)
 			})
 			ctx.Button("Clear Traces").On(func() {
 				selectedPlanet.clearTraces()
 			})
 		})
 
-		ctx.Text("")
+		ctx.Button("Save to presets").On(func() {
+			game.simulation.addPlanetToPlanetPresets(*selectedPlanet)
+		})
+
 		ctx.Button("Remove Planet").On(func() {
 			if ui.hasRemovedPlanet {
 				ui.hasRemovedPlanet = false
@@ -340,6 +362,75 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 			game.simulation.removeSelectedPlanet(game.ui)
 			ui.hasRemovedPlanet = true
 		})
+	})
+}
+
+func (ui *ui) planetListWindow(ctx *debugui.Context, game *Game) {
+	ctx.Window("Planets", image.Rect(game.screenSize[0]-200, 0, game.screenSize[0], 300), func(layout debugui.ContainerLayout) {
+		for i, planet := range game.simulation.planets {
+			ctx.IDScope("grid "+string(i), func() {
+				ctx.GridCell(func(bounds image.Rectangle) {
+					ctx.SetGridLayout([]int{15, -4, 15}, []int{20})
+					ctx.DrawOnlyWidget(func(screen *ebiten.Image) {
+						cx := float32(bounds.Min.X) + 7
+						cy := float32(bounds.Min.Y) + float32(bounds.Dy())/2
+						r := float32(8)
+						vector.FillCircle(screen, cx, cy, r, planet.Color, true)
+					})
+					ctx.IDScope("button "+string(i), func() {
+						ctx.Button(fmt.Sprintf("%s: %.1f, %.1f", planet.Name, planet.X, planet.Y)).On(func() {
+							game.simulation.selectedPlanetIndex = i
+							game.simulation.isPlanetSelected = true
+							game.simulation.focusedPlanetIndex = i
+							game.simulation.isPlanetFocused = true
+							game.simulation.planets[i].focus(game.simulation)
+						})
+					})
+					ctx.Button("X").On(func() {
+						game.simulation.planetsToRemove = append(game.simulation.planetsToRemove, i)
+					})
+				})
+			})
+		}
+	})
+}
+
+func (ui *ui) planetPresetsWindow(ctx *debugui.Context, game *Game) {
+	ctx.Window("Planet Presets", image.Rect(game.screenSize[0]-200, 320, game.screenSize[0], 620), func(layout debugui.ContainerLayout) {
+		for i, planet := range game.simulation.planetPresets {
+			if planet.Image == nil {
+				continue
+			}
+			ctx.IDScope("grid "+string(i), func() {
+				ctx.GridCell(func(bounds image.Rectangle) {
+					ctx.SetGridLayout([]int{15, -3, 15}, []int{20})
+					ctx.DrawOnlyWidget(func(screen *ebiten.Image) {
+						cx := float32(bounds.Min.X) + 7
+						cy := float32(bounds.Min.Y) + float32(bounds.Dy())/2
+						r := float32(8)
+						vector.FillCircle(screen, cx, cy, r, planet.Color, true)
+					})
+					ctx.IDScope("button "+string(i), func() {
+						ctx.Button(fmt.Sprintf("%s", planet.Name)).On(func() {
+							game.simulation.planetCreator.planet = newPlanet(
+								planet.Name,
+								game.simulation.planetCreator.planet.X,
+								game.simulation.planetCreator.planet.Y,
+								planet.Radius,
+								planet.Mass,
+								planet.Velocity,
+								planet.Color,
+								planet.Offset,
+							)
+							game.simulation.planetCreator.planet.HasNameChanged = true
+						})
+					})
+					ctx.Button("X").On(func() {
+						game.simulation.planetPresets = slices.Delete(game.simulation.planetPresets, i, i+1)
+					})
+				})
+			})
+		}
 	})
 }
 

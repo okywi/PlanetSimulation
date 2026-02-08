@@ -6,15 +6,15 @@ import (
 )
 
 type vector2 struct {
-	x float64
-	y float64
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
 }
 
 func (v vector2) normalize() vector2 {
-	distance := math.Sqrt(v.x*v.x + v.y*v.y)
+	distance := math.Sqrt(v.X*v.X + v.Y*v.Y)
 
-	norX := v.x / distance
-	norY := v.y / distance
+	norX := v.X / distance
+	norY := v.Y / distance
 
 	return vector2{
 		norX,
@@ -24,8 +24,8 @@ func (v vector2) normalize() vector2 {
 
 func (v vector2) add(v2 vector2) vector2 {
 	return vector2{
-		v.x + v2.x,
-		v.y + v2.y,
+		v.X + v2.X,
+		v.Y + v2.Y,
 	}
 }
 

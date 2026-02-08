@@ -1,8 +1,12 @@
 package planetsimulation
 
 import (
+	"encoding/json"
+	"fmt"
 	"image/color"
 	"log"
+	"os"
+	"path/filepath"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -36,8 +40,11 @@ type simulation struct {
 	gameSize              []int
 	currentScale          float64
 	planets               []*Planet
+	planetPresets         []*Planet
+	planetPresetPath      string
 	planetsOffset         []float64
 	defaultOffset         []float64
+	planetCounter         int
 	planetCreator         *planetCreator
 	gravitationalConstant float64
 	shouldReset           bool
@@ -65,6 +72,7 @@ func newSimulation(gameSize []int) *simulation {
 	// planet that is created by a click
 	planetCreator := &planetCreator{
 		planet: newPlanet(
+			"Planet 1",
 			0,
 			0,
 			10,
@@ -81,6 +89,7 @@ func newSimulation(gameSize []int) *simulation {
 		gameSize:              gameSize,
 		planetCreator:         planetCreator,
 		defaultOffset:         []float64{float64(gameSize[0]) / 2, float64(gameSize[1] / 2)},
+		planetPresetPath:      "assets/data/planet_presets.json",
 		gravitationalConstant: 10000.0,
 		shouldReset:           false,
 		running:               true,
@@ -89,7 +98,54 @@ func newSimulation(gameSize []int) *simulation {
 	}
 	sim.planetsOffset = []float64{sim.defaultOffset[0], sim.defaultOffset[1]}
 
+	sim.loadPresetsFromFile()
+
 	return sim
+}
+
+func (sim *simulation) addPlanetToPlanetPresets(planetToAdd Planet) {
+	// replace if same name
+	for i, planet := range sim.planetPresets {
+		if planet.Name == planetToAdd.Name {
+			sim.planetPresets[i] = &planetToAdd
+			return
+		}
+	}
+
+	sim.planetPresets = append(sim.planetPresets, &planetToAdd)
+
+	sim.savePresetsToFile()
+}
+
+func (sim *simulation) savePresetsToFile() {
+	if err := os.MkdirAll(filepath.Dir(sim.planetPresetPath), os.ModePerm); err != nil {
+		log.Printf("Failed to create dir for %s file: %v", sim.planetPresetPath, err)
+	}
+
+	content, err := json.MarshalIndent(sim.planetPresets, "", " ")
+
+	if err != nil {
+		log.Printf("Failed to marshal planet presets json: %v", err)
+	}
+
+	if err := os.WriteFile(sim.planetPresetPath, content, os.ModePerm); err != nil {
+		log.Printf("Failed to create file %s: %v", sim.planetPresetPath, err)
+	}
+}
+
+func (sim *simulation) loadPresetsFromFile() {
+	if _, err := os.Stat(sim.planetPresetPath); err != nil {
+		return
+	}
+
+	content, err := os.ReadFile(sim.planetPresetPath)
+	if err != nil {
+		log.Printf("Failed to read file %s: %v", sim.planetPresetPath, err)
+	}
+
+	if err := json.Unmarshal(content, &sim.planetPresets); err != nil {
+		log.Printf("Failed to unmarshal planet presets json: %v", err)
+	}
 }
 
 func (sim *simulation) returnToOrigin() {
@@ -101,7 +157,7 @@ func (sim *simulation) returnToOrigin() {
 
 	// move planet images as well
 	for _, planet := range sim.planets {
-		planet.geometry.Translate(float64(-dx), float64(-dy))
+		planet.Geometry.Translate(float64(-dx), float64(-dy))
 	}
 }
 
@@ -109,22 +165,30 @@ func (sim *simulation) spawnPlanet() {
 	// check if would collide on spawn
 	for _, planet := range sim.planets {
 		toCreatePlanet := sim.planetCreator.planet
-		if _, _, _, overlaps := overlapsCircle(planet.x, toCreatePlanet.x, planet.y, toCreatePlanet.y, planet.radius, toCreatePlanet.radius); overlaps {
+		if _, _, _, overlaps := overlapsCircle(planet.X, toCreatePlanet.X, planet.Y, toCreatePlanet.Y, planet.Radius, toCreatePlanet.Radius); overlaps {
 			return
 		}
 	}
 
 	newPlanet := newPlanet(
-		sim.planetCreator.planet.x,
-		sim.planetCreator.planet.y,
-		sim.planetCreator.planet.radius,
-		sim.planetCreator.planet.mass,
-		sim.planetCreator.planet.velocity,
-		sim.planetCreator.planet.color,
+		sim.planetCreator.planet.Name,
+		sim.planetCreator.planet.X,
+		sim.planetCreator.planet.Y,
+		sim.planetCreator.planet.Radius,
+		sim.planetCreator.planet.Mass,
+		sim.planetCreator.planet.Velocity,
+		sim.planetCreator.planet.Color,
 		sim.planetsOffset,
 	)
 
 	sim.planets = append(sim.planets, newPlanet)
+	sim.planetCounter++
+
+	// make planetCreator planet highlight invisible
+	sim.planetCreator.showPlanet = false
+
+	// reset name change of planetCreator
+	sim.planetCreator.planet.HasNameChanged = false
 
 	// select planet if none other planet is selected
 	if !sim.isPlanetSelected {
@@ -147,7 +211,7 @@ func (sim *simulation) handleReset() {
 		sim.planetsOffset[1] -= dy
 
 		for _, planet := range sim.planets {
-			planet.geometry.Translate(-dx, -dy)
+			planet.Geometry.Translate(-dx, -dy)
 		}
 
 		sim.shouldReset = false
@@ -189,7 +253,6 @@ func (sim *simulation) Update() {
 	sim.handleReset()
 	sim.handlePlanetDeletion()
 	sim.updatePlanets()
-
 }
 
 func (sim *simulation) removeSelectedPlanet(ui *ui) {
@@ -198,31 +261,34 @@ func (sim *simulation) removeSelectedPlanet(ui *ui) {
 }
 
 func (sim *simulation) updateToCreatePlanet(x float64, y float64) {
+	if !sim.planetCreator.planet.HasNameChanged {
+		sim.planetCreator.planet.Name = fmt.Sprintf("Planet %d", sim.planetCounter+1)
+	}
 	// set x
-	sim.planetCreator.planet.x = x
-	sim.planetCreator.planet.y = y
+	sim.planetCreator.planet.X = x
+	sim.planetCreator.planet.Y = y
 
 	planet := sim.planetCreator.planet
-	radius := float32(planet.radius)
+	radius := float32(planet.Radius)
 
-	r, g, b, _ := convertColorToInt(planet.color)
+	r, g, b, _ := convertColorToInt(planet.Color)
 
 	transparentColor := SetColor(uint8(r), uint8(g), uint8(b), 100)
-	sim.planetCreator.planet.image = ebiten.NewImage(int(planet.radius*2), int(planet.radius*2))
-	vector.FillCircle(sim.planetCreator.planet.image, radius, radius, radius, transparentColor, true)
+	sim.planetCreator.planet.Image = ebiten.NewImage(int(planet.Radius*2), int(planet.Radius*2))
+	vector.FillCircle(sim.planetCreator.planet.Image, radius, radius, radius, transparentColor, true)
 
-	planet.geometry.Reset()
+	planet.Geometry.Reset()
 	// center planet
-	planet.geometry.Translate(planet.x-float64(planet.radius), planet.y-float64(planet.radius))
+	planet.Geometry.Translate(planet.X-float64(planet.Radius), planet.Y-float64(planet.Radius))
 	// adjust for offset
-	planet.geometry.Translate(sim.planetsOffset[0], sim.planetsOffset[1])
+	planet.Geometry.Translate(sim.planetsOffset[0], sim.planetsOffset[1])
 
-	sim.planetCreator.planet.geometry = planet.geometry
+	sim.planetCreator.planet.Geometry = planet.Geometry
 }
 
 func (sim *simulation) drawToCreatePlanet(screen *ebiten.Image) {
-	screen.DrawImage(sim.planetCreator.planet.image, &ebiten.DrawImageOptions{
-		GeoM: sim.planetCreator.planet.geometry,
+	screen.DrawImage(sim.planetCreator.planet.Image, &ebiten.DrawImageOptions{
+		GeoM: sim.planetCreator.planet.Geometry,
 	})
 }
 
