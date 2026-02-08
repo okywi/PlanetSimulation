@@ -9,6 +9,7 @@ Basic planet simulation using Newton's law of universal gravitation
 - [x] Planet Creator
 - [X] Modification of planets
 
+## Showcase
 <img width="1920" height="1080" alt="image" src="assets/images/cover.png" />
 
 ## Dependencies
