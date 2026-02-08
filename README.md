@@ -1,5 +1,5 @@
 # PlanetSimulation
-Basic simulation using Newton's law of universal gravitation
+Basic planet simulation using Newton's law of universal gravitation
 
 ## Features
 - [x] Planet merging
