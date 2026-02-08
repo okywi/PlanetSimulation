@@ -53,10 +53,22 @@ func (controls *controls) selectPlanetIfPossible(ui *ui, sim *simulation, x int,
 	return false
 }
 
+func (controls *controls) isUiFocused(ui *ui) bool {
+	mouseX, mouseY := ebiten.CursorPosition()
+	// check if ui focused/hovered
+	if ui.hasFocus == 1 || controls.checkUIFocusLayouts(ui, mouseX, mouseY) {
+		return true
+	}
+
+	return false
+}
+
 func (controls *controls) Update(sim *simulation, ui *ui) {
-	controls.handlePlanetCreation(sim, ui)
-	controls.handleMovement(sim)
-	controls.handlePausing(sim)
+	if !controls.isUiFocused(ui) {
+		controls.handlePlanetCreation(sim, ui)
+		controls.handleMovement(sim, ui)
+		controls.handlePausing(sim, ui)
+	}
 }
 
 func (controls *controls) checkUIFocusLayouts(ui *ui, mouseX int, mouseY int) bool {
@@ -75,11 +87,6 @@ func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && !controls.mouseButtonsPressed[0] {
 		controls.mouseButtonsPressed[ebiten.MouseButton0] = true
 
-		// check if ui focused/hovered
-		if ui.hasFocus == 1 || controls.checkUIFocusLayouts(ui, mouseX, mouseY) {
-			return
-		}
-
 		selectedX := float64(mouseX) - sim.planetsOffset[0]
 		selectedY := float64(mouseY) - sim.planetsOffset[1]
 
@@ -96,7 +103,7 @@ func (controls *controls) handlePlanetCreation(sim *simulation, ui *ui) {
 	}
 }
 
-func (controls *controls) handlePausing(sim *simulation) {
+func (controls *controls) handlePausing(sim *simulation, ui *ui) {
 	if ebiten.IsKeyPressed(ebiten.KeySpace) {
 		if slices.Contains(controls.keysPressed, ebiten.KeySpace) {
 			return
@@ -116,7 +123,7 @@ func (controls *controls) handlePausing(sim *simulation) {
 	}
 }
 
-func (controls *controls) handleMovement(sim *simulation) {
+func (controls *controls) handleMovement(sim *simulation, ui *ui) {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton1) {
 		ebiten.SetCursorShape(ebiten.CursorShapeMove)
 		// clear focused planet
@@ -134,7 +141,7 @@ func (controls *controls) handleMovement(sim *simulation) {
 
 		// move planet images
 		for _, planet := range sim.planets {
-			planet.Geometry.Translate(float64(dx), float64(dy))
+			planet.geometry.Translate(float64(dx), float64(dy))
 		}
 
 		controls.previousMousePosition = currentMousePosition

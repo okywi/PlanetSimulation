@@ -57,6 +57,7 @@ func (ui *ui) Update(game *Game) error {
 		ui.modifyPlanetWindow(ctx, game)
 		ui.planetListWindow(ctx, game)
 		ui.planetPresetsWindow(ctx, game)
+		ui.simulationPresetsWindow(ctx, game)
 		return err
 	})
 	return err
@@ -129,7 +130,7 @@ func (ui *ui) createSystemWindow(ctx *debugui.Context, game *Game) {
 }
 
 func (ui *ui) createPlanetWindow(ctx *debugui.Context, game *Game) {
-	ctx.Window("Create Planet", image.Rect(0, 330, 240, 630), func(layout debugui.ContainerLayout) {
+	ctx.Window("Create Planet", image.Rect(0, 325, 250, 645), func(layout debugui.ContainerLayout) {
 		ui.layouts = append(ui.layouts, layout.BodyBounds)
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
@@ -221,15 +222,16 @@ func (ui *ui) createPlanetWindow(ctx *debugui.Context, game *Game) {
 }
 
 func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
-	if !game.simulation.isPlanetSelected {
+	if !game.simulation.isPlanetSelected || game.simulation.selectedPlanetIndex > len(game.simulation.planets) {
 		return
 	}
+
 	if slices.Contains(game.simulation.planetsToRemove, game.simulation.selectedPlanetIndex) {
 		return
 	}
 
 	selectedPlanet := game.simulation.planets[game.simulation.selectedPlanetIndex]
-	ctx.Window("Modify Planet", image.Rect(000, 640, 250, 1070), func(layout debugui.ContainerLayout) {
+	ctx.Window("Modify Planet", image.Rect(000, 650, 250, 1015), func(layout debugui.ContainerLayout) {
 		ui.layouts = append(ui.layouts, layout.BodyBounds)
 		ctx.GridCell(func(bounds image.Rectangle) {
 			ctx.SetGridLayout([]int{-2, -2}, []int{-1})
@@ -329,7 +331,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 				})
 			})
 		})
-		ctx.Header("Traces", true, func() {
+		ctx.Header("Traces", false, func() {
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-3, -2}, []int{-1})
 				ctx.Text("trace every Nth tick:")
@@ -367,6 +369,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, game *Game) {
 
 func (ui *ui) planetListWindow(ctx *debugui.Context, game *Game) {
 	ctx.Window("Planets", image.Rect(game.screenSize[0]-200, 0, game.screenSize[0], 300), func(layout debugui.ContainerLayout) {
+		ui.layouts = append(ui.layouts, layout.BodyBounds)
 		for i, planet := range game.simulation.planets {
 			ctx.IDScope("grid "+string(i), func() {
 				ctx.GridCell(func(bounds image.Rectangle) {
@@ -397,8 +400,9 @@ func (ui *ui) planetListWindow(ctx *debugui.Context, game *Game) {
 
 func (ui *ui) planetPresetsWindow(ctx *debugui.Context, game *Game) {
 	ctx.Window("Planet Presets", image.Rect(game.screenSize[0]-200, 320, game.screenSize[0], 620), func(layout debugui.ContainerLayout) {
+		ui.layouts = append(ui.layouts, layout.BodyBounds)
 		for i, planet := range game.simulation.planetPresets {
-			if planet.Image == nil {
+			if planet == nil {
 				continue
 			}
 			ctx.IDScope("grid "+string(i), func() {
@@ -427,6 +431,36 @@ func (ui *ui) planetPresetsWindow(ctx *debugui.Context, game *Game) {
 					})
 					ctx.Button("X").On(func() {
 						game.simulation.planetPresets = slices.Delete(game.simulation.planetPresets, i, i+1)
+					})
+				})
+			})
+		}
+	})
+}
+
+func (ui *ui) simulationPresetsWindow(ctx *debugui.Context, game *Game) {
+	ctx.Window("Simulation Presets", image.Rect(game.screenSize[0]-200, 630, game.screenSize[0], 940), func(layout debugui.ContainerLayout) {
+		ui.layouts = append(ui.layouts, layout.BodyBounds)
+		ctx.TextField(&game.simulation.currentSimulationPresetName)
+		ctx.Button("Save simulation to presets").On(func() {
+			game.simulation.saveSimulationPreset()
+		})
+		for i, simulationPreset := range game.simulation.simulationPresets {
+			if simulationPreset == nil {
+				continue
+			}
+			ctx.IDScope("grid "+string(i), func() {
+				ctx.GridCell(func(bounds image.Rectangle) {
+					ctx.SetGridLayout([]int{-3, 15}, []int{20})
+					ctx.IDScope("button "+string(i), func() {
+						ctx.Button(fmt.Sprintf("%s", simulationPreset.Name)).On(func() {
+							game.simulation.shouldReset = true
+							game.simulation.shouldLoadSimulation = true
+							game.simulation.currentSimulationPresetIndex = i
+						})
+					})
+					ctx.Button("X").On(func() {
+						game.simulation.removeSimulationPreset(i)
 					})
 				})
 			})

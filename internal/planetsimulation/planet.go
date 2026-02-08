@@ -19,41 +19,41 @@ type Planet struct {
 	Velocity        vector2 `json:"velocity"`
 	Mass            float64
 	Color           color.NRGBA
-	Image           *ebiten.Image
-	Geometry        ebiten.GeoM
-	Traces          [][]int
+	image           *ebiten.Image
+	geometry        ebiten.GeoM
+	traces          [][]int
 	TraceWidth      float64
 	AntialiasTraces bool
 	TickCount       int
 	TraceEveryNTick int // every Nth tick
 	DrawEveryNTick  int
-	IsFocused       bool
+	isFocused       bool
 }
 
 func (p *Planet) translate(dx float64, dy float64) {
 	p.X += dx
 	p.Y += dy
 
-	p.Geometry.Translate(dx, dy)
+	p.geometry.Translate(dx, dy)
 }
 
 func (p *Planet) setPosition(x float64, y float64) {
 	p.X = x
 	p.Y = y
 
-	p.Geometry.Reset()
+	p.geometry.Reset()
 	// center circle
-	p.Geometry.Translate(x-p.Radius, y-p.Radius)
+	p.geometry.Translate(x-p.Radius, y-p.Radius)
 	// adjust for offset
-	p.Geometry.Translate(p.Offset[0], p.Offset[1])
+	p.geometry.Translate(p.Offset[0], p.Offset[1])
 }
 
 func (p *Planet) updateImage() {
-	p.Geometry.Reset()
+	p.geometry.Reset()
 	p.setPosition(p.X, p.Y)
 	radius := float32(p.Radius)
-	p.Image = ebiten.NewImage(int(radius*2), int(radius*2))
-	vector.FillCircle(p.Image, radius, radius, radius, p.Color, true)
+	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
+	vector.FillCircle(p.image, radius, radius, radius, p.Color, true)
 }
 
 func (p *Planet) getColor() (int, int, int) {
@@ -96,7 +96,7 @@ func (p *Planet) changeColor(colorDelta ColorDelta) {
 }
 
 func (p *Planet) clearTraces() {
-	p.Traces = slices.Delete(p.Traces, 0, len(p.Traces))
+	p.traces = slices.Delete(p.traces, 0, len(p.traces))
 }
 
 func (p *Planet) focus(sim *simulation) {
@@ -114,7 +114,7 @@ func (p *Planet) focus(sim *simulation) {
 	sim.planetsOffset[1] -= planetDy
 
 	for _, planet := range sim.planets {
-		planet.Geometry.Translate(-planetDx, -planetDy)
+		planet.geometry.Translate(-planetDx, -planetDy)
 	}
 
 	p.updateImage()
@@ -123,13 +123,13 @@ func (p *Planet) focus(sim *simulation) {
 func newPlanet(name string, x float64, y float64, radius float64, mass float64, velocity vector2, color color.NRGBA, offset []float64) *Planet {
 	p := Planet{}
 	p.Name = name
-	p.Image = ebiten.NewImage(int(radius*2), int(radius*2))
+	p.image = ebiten.NewImage(int(radius*2), int(radius*2))
 	p.Color = color
 	p.Radius = radius
 	p.Velocity = velocity
 	p.Mass = mass
 	p.Offset = offset
-	p.Geometry = ebiten.GeoM{}
+	p.geometry = ebiten.GeoM{}
 
 	// adjust for center and screen offset
 	p.setPosition(x, y)
@@ -243,7 +243,7 @@ func (p *Planet) handleGravitation(sim *simulation) {
 			int(p.Y),
 		}
 
-		p.Traces = append(p.Traces, tracePosition)
+		p.traces = append(p.traces, tracePosition)
 
 		p.TickCount -= p.TraceEveryNTick
 	}
@@ -252,12 +252,12 @@ func (p *Planet) handleGravitation(sim *simulation) {
 }
 
 func (p *Planet) Draw(screen *ebiten.Image) {
-	screen.DrawImage(p.Image, &ebiten.DrawImageOptions{
-		GeoM: p.Geometry,
+	screen.DrawImage(p.image, &ebiten.DrawImageOptions{
+		GeoM: p.geometry,
 	})
 
-	for i := 0; i < len(p.Traces); i++ {
-		if i == len(p.Traces)-1 {
+	for i := 0; i < len(p.traces); i++ {
+		if i == len(p.traces)-1 {
 			continue
 		}
 
@@ -265,8 +265,8 @@ func (p *Planet) Draw(screen *ebiten.Image) {
 			continue
 		}
 
-		currentTrace := p.Traces[i]
-		nextTrace := p.Traces[i+1]
+		currentTrace := p.traces[i]
+		nextTrace := p.traces[i+1]
 
 		// adjust for offset
 		vector.StrokeLine(
