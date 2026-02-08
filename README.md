@@ -17,3 +17,6 @@ Check for your system [https://ebitengine.org/en/documents/install.html](here)
 ## Libraries
 [https://github.com/hajimehoshi/ebiten](ebitengine)
 
+## Build
+Use `./build.sh` to build for Windows and Linux. The built binary file will be in the created `build` directory.
+
