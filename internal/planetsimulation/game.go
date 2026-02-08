@@ -15,8 +15,8 @@ type Game struct {
 
 func (game *Game) Update() error {
 	game.simulation.Update()
-	game.controls.Update(game.simulation, game.ui)
-	if err := game.ui.Update(game); err != nil {
+	game.controls.Update(game.simulation.planetHandler, game.ui)
+	if err := game.ui.Update(game.simulation, game.simulation.planetHandler); err != nil {
 		return err
 	}
 

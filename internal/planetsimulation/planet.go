@@ -99,21 +99,21 @@ func (p *Planet) clearTraces() {
 	p.traces = slices.Delete(p.traces, 0, len(p.traces))
 }
 
-func (p *Planet) focus(sim *simulation) {
-	sim.returnToOrigin()
+func (p *Planet) focus(planetHandler *planetHandler) {
+	planetHandler.returnToOrigin()
 
-	if sim.planetHandler.focusedPlanet.index >= len(sim.planetHandler.planets) {
+	if planetHandler.focusedPlanet.index >= len(planetHandler.planets) {
 		return
 	}
 
 	// move to planet
-	focusedPlanet := sim.planetHandler.planets[sim.planetHandler.focusedPlanet.index]
+	focusedPlanet := planetHandler.planets[planetHandler.focusedPlanet.index]
 	planetDx := focusedPlanet.X
 	planetDy := focusedPlanet.Y
-	sim.planetHandler.planetsOffset[0] -= planetDx
-	sim.planetHandler.planetsOffset[1] -= planetDy
+	planetHandler.planetsOffset[0] -= planetDx
+	planetHandler.planetsOffset[1] -= planetDy
 
-	for _, planet := range sim.planetHandler.planets {
+	for _, planet := range planetHandler.planets {
 		planet.geometry.Translate(-planetDx, -planetDy)
 	}
 
@@ -150,16 +150,14 @@ func (p *Planet) handleFocusedPlanet(sim *simulation, dx float64, dy float64) {
 	}
 }
 
-func (p *Planet) Update(sim *simulation, planets []*Planet) {
-	if sim.running {
-		p.handleGravitation(sim)
-	}
+func (p *Planet) Update(handler *planetHandler) {
+	p.handleGravitation(handler)
 }
 
-func mergePlanets(sim *simulation, p *Planet, otherPlanet *Planet) {
+func mergePlanets(planetHandler *planetHandler, p *Planet, otherPlanet *Planet) {
 	// merge planets
 	if p.Mass >= otherPlanet.Mass {
-		sim.planetHandler.planetsToRemove = append(sim.planetHandler.planetsToRemove, slices.Index(sim.planetHandler.planets, otherPlanet))
+		planetHandler.planetsToRemove = append(planetHandler.planetsToRemove, slices.Index(planetHandler.planets, otherPlanet))
 		p.Mass += otherPlanet.Mass / 2
 		if p.Radius <= 1000 {
 			p.Radius += otherPlanet.Radius / 4
@@ -173,20 +171,20 @@ func mergePlanets(sim *simulation, p *Planet, otherPlanet *Planet) {
 	}
 }
 
-func (p *Planet) handleGravitation(sim *simulation) {
+func (p *Planet) handleGravitation(planetHandler *planetHandler) {
 	forces := make([]vector2, 0)
 
-	for i := 0; i < len(sim.planetHandler.planets); i++ {
-		otherPlanet := sim.planetHandler.planets[i]
+	for i := 0; i < len(planetHandler.planets); i++ {
+		otherPlanet := planetHandler.planets[i]
 
-		if slices.Contains(sim.planetHandler.planetsToRemove, i) || otherPlanet == p {
+		if slices.Contains(planetHandler.planetsToRemove, i) || otherPlanet == p {
 			continue
 		}
 
 		// calculate distance
 		dx, dy, distance, overlaps := overlapsCircle(otherPlanet.X, p.X, otherPlanet.Y, p.Y, otherPlanet.Radius, p.Radius)
 		if overlaps {
-			mergePlanets(sim, p, otherPlanet)
+			mergePlanets(planetHandler, p, otherPlanet)
 		}
 
 		force := vector2{
@@ -194,7 +192,7 @@ func (p *Planet) handleGravitation(sim *simulation) {
 			Y: dy,
 		}
 
-		forceAmount := sim.gravitationalConstant * ((p.Mass * otherPlanet.Mass) / math.Pow(distance, 2))
+		forceAmount := planetHandler.gravitationalConstant * ((p.Mass * otherPlanet.Mass) / math.Pow(distance, 2))
 
 		norForce := force.normalize()
 		force.X = norForce.X * forceAmount
