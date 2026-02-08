@@ -12,10 +12,10 @@ Basic planet simulation using Newton's law of universal gravitation
 <img width="1920" height="1080" alt="image" src="assets/images/cover.png" />
 
 ## Dependencies
-Check for your system [https://ebitengine.org/en/documents/install.html](here)
+Check for your system [here](https://ebitengine.org/en/documents/install.html)
 
 ## Libraries
-[https://github.com/hajimehoshi/ebiten](ebitengine)
+[ebitengine](https://github.com/hajimehoshi/ebiten)
 
 ## Build
 Use `./build.sh` to build for Windows and Linux. The built binary file will be in the created `build` directory.
