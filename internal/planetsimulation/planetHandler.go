@@ -1,8 +1,6 @@
 package planetsimulation
 
 import (
-	"encoding/json"
-	"log"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -10,8 +8,7 @@ import (
 
 type planetHandler struct {
 	planets               []*Planet
-	presets               []*Planet
-	presetFilePath        string
+	planetPresets         *planetPresets
 	planetsOffset         []float64
 	planetCounter         int
 	planetCreator         *planetCreator
@@ -38,14 +35,13 @@ func newPlanetHandler(gameSize []int) *planetHandler {
 	planetHandler := &planetHandler{
 		planetCreator:         newPlanetCreator(),
 		defaultPlanetsOffset:  []float64{float64(gameSize[0]) / 2, float64(gameSize[1] / 2)},
-		presetFilePath:        "assets/data/planet_presets.json",
+		planetPresets:         newPlanetPresets(),
 		planetsToRemove:       make([]int, 0),
 		planetCounter:         0,
 		gravitationalConstant: 10000.0,
 		running:               true,
 	}
 	planetHandler.planetsOffset = []float64{planetHandler.defaultPlanetsOffset[0], planetHandler.defaultPlanetsOffset[1]}
-	planetHandler.loadPlanetPresetsFromFile()
 
 	return planetHandler
 }
@@ -62,7 +58,6 @@ func (handler *planetHandler) handlePlanetDeletion() {
 			}
 
 			handler.planets = slices.Delete(handler.planets, planetIndex, planetIndex+1)
-
 		}
 
 		handler.planetsToRemove = []int{}
@@ -91,7 +86,7 @@ func (handler *planetHandler) focusPlanet(planetIndex int) {
 	handler.focusedPlanet.isFocused = true
 }
 
-func (handler *planetHandler) removeSelectedPlanet() {
+func (handler *planetHandler) deleteSelectedPlanet() {
 	handler.planetsToRemove = append(handler.planetsToRemove, handler.selectedPlanet.index)
 	handler.selectedPlanet.isSelected = false
 }
@@ -107,38 +102,6 @@ func (handler *planetHandler) returnToOrigin() {
 	for _, planet := range handler.planets {
 		planet.geometry.Translate(float64(-dx), float64(-dy))
 	}
-}
-
-func (handler *planetHandler) savePlanetPresetsToFile() {
-	content, err := json.MarshalIndent(handler.presetFilePath, "", " ")
-	if err != nil {
-		log.Printf("Failed to marshal planet presets json: %v", err)
-	}
-
-	writeFile(handler.presetFilePath, content)
-}
-
-func (handler *planetHandler) loadPlanetPresetsFromFile() {
-	content := readFile(handler.presetFilePath)
-
-	if err := json.Unmarshal(content, &handler.presets); err != nil {
-		log.Printf("Failed to unmarshal planet presets json: %v", err)
-	}
-}
-
-func (handler *planetHandler) addPlanetToPresets(planetToAdd Planet) {
-	// replace if same name
-	for i, planet := range handler.presets {
-		if planet.Name == planetToAdd.Name {
-			handler.presets[i] = &planetToAdd
-			handler.savePlanetPresetsToFile()
-			return
-		}
-	}
-
-	handler.presets = append(handler.presets, &planetToAdd)
-
-	handler.savePlanetPresetsToFile()
 }
 
 func (handler *planetHandler) Update() {

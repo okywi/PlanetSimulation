@@ -200,7 +200,7 @@ func (ui *ui) createPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 			})
 		})
 		ctx.Button("Save to presets").On(func() {
-			planetHandler.addPlanetToPresets(*planetHandler.planetCreator.planet)
+			planetHandler.planetPresets.addPlanet(*planetHandler.planetCreator.planet)
 		})
 		ctx.Button("Spawn").On(func() {
 			planetHandler.planetCreator.spawnPlanet(planetHandler)
@@ -339,7 +339,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 		})
 
 		ctx.Button("Save to presets").On(func() {
-			planetHandler.addPlanetToPresets(*selectedPlanet)
+			planetHandler.planetPresets.addPlanet(*selectedPlanet)
 		})
 
 		ctx.Button("Remove Planet").On(func() {
@@ -347,7 +347,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 				ui.hasRemovedPlanet = false
 				return
 			}
-			planetHandler.removeSelectedPlanet()
+			planetHandler.deleteSelectedPlanet()
 			ui.hasRemovedPlanet = true
 		})
 	})
@@ -384,7 +384,7 @@ func (ui *ui) planetListWindow(ctx *debugui.Context, planetHandler *planetHandle
 func (ui *ui) planetPresetsWindow(ctx *debugui.Context, planetHandler *planetHandler, screenSize []int) {
 	ctx.Window("Planet Presets", image.Rect(screenSize[0]-200, 320, screenSize[0], 620), func(layout debugui.ContainerLayout) {
 		ui.layouts = append(ui.layouts, layout.BodyBounds)
-		for i, planet := range planetHandler.presets {
+		for i, planet := range planetHandler.planetPresets.presets {
 			if planet == nil {
 				continue
 			}
@@ -413,7 +413,7 @@ func (ui *ui) planetPresetsWindow(ctx *debugui.Context, planetHandler *planetHan
 						})
 					})
 					ctx.Button("X").On(func() {
-						planetHandler.presets = slices.Delete(planetHandler.presets, i, i+1)
+						planetHandler.planetPresets.deletePreset(i)
 					})
 				})
 			})
