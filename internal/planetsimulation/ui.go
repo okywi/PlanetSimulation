@@ -286,7 +286,7 @@ func (ui *ui) modifyPlanetWindow(ctx *debugui.Context, planetHandler *planetHand
 			planetHandler.focusPlanet(planetHandler.selectedPlanet.index)
 		})
 		ctx.Header("Color", true, func() {
-			r, g, b := selectedPlanet.getColor()
+			r, g, b, _ := selectedPlanet.getColor()
 			ctx.GridCell(func(bounds image.Rectangle) {
 				ctx.SetGridLayout([]int{-3, -1}, []int{59})
 				ctx.GridCell(func(bounds image.Rectangle) {
@@ -373,7 +373,7 @@ func (ui *ui) planetListWindow(ctx *debugui.Context, planetHandler *planetHandle
 						})
 					})
 					ctx.Button("X").On(func() {
-						planetHandler.planetsToRemove = append(planetHandler.planetsToRemove, i)
+						planetHandler.deletePlanet(i)
 					})
 				})
 			})

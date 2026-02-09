@@ -56,14 +56,15 @@ func (p *Planet) updateImage() {
 	vector.FillCircle(p.image, radius, radius, radius, p.Color, true)
 }
 
-func (p *Planet) getColor() (int, int, int) {
-	r, g, b, _ := p.Color.RGBA()
+func (p *Planet) getColor() (int, int, int, int) {
+	r, g, b, a := p.Color.RGBA()
 
 	r8 := int(r >> 8)
 	g8 := int(g >> 8)
 	b8 := int(b >> 8)
+	a8 := int(a >> 8)
 
-	return r8, g8, b8
+	return r8, g8, b8, a8
 }
 
 func (p *Planet) changeColor(colorDelta ColorDelta) {
@@ -154,23 +155,6 @@ func (p *Planet) Update(handler *planetHandler) {
 	p.handleGravitation(handler)
 }
 
-func mergePlanets(planetHandler *planetHandler, p *Planet, otherPlanet *Planet) {
-	// merge planets
-	if p.Mass >= otherPlanet.Mass {
-		planetHandler.planetsToRemove = append(planetHandler.planetsToRemove, slices.Index(planetHandler.planets, otherPlanet))
-		p.Mass += otherPlanet.Mass / 2
-		if p.Radius <= 1000 {
-			p.Radius += otherPlanet.Radius / 4
-		}
-
-		p.Velocity = p.Velocity.add(vector2{
-			((otherPlanet.Velocity.X) / p.Mass),
-			((otherPlanet.Velocity.Y) / p.Mass),
-		})
-		p.updateImage()
-	}
-}
-
 func (p *Planet) handleGravitation(planetHandler *planetHandler) {
 	forces := make([]vector2, 0)
 
@@ -179,12 +163,13 @@ func (p *Planet) handleGravitation(planetHandler *planetHandler) {
 
 		if slices.Contains(planetHandler.planetsToRemove, i) || otherPlanet == p {
 			continue
+
 		}
 
 		// calculate distance
 		dx, dy, distance, overlaps := overlapsCircle(otherPlanet.X, p.X, otherPlanet.Y, p.Y, otherPlanet.Radius, p.Radius)
 		if overlaps {
-			mergePlanets(planetHandler, p, otherPlanet)
+			planetHandler.mergePlanets(p, otherPlanet)
 		}
 
 		force := vector2{

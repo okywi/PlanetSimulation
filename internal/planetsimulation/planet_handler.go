@@ -64,6 +64,27 @@ func (handler *planetHandler) handlePlanetDeletion() {
 	}
 }
 
+func (handler *planetHandler) deletePlanet(index int) {
+	handler.planetsToRemove = append(handler.planetsToRemove, index)
+}
+
+func (handler *planetHandler) mergePlanets(p *Planet, otherPlanet *Planet) {
+	// merge planets
+	if p.Mass >= otherPlanet.Mass {
+		handler.deletePlanet(slices.Index(handler.planets, otherPlanet))
+		p.Mass += otherPlanet.Mass / 2
+		if p.Radius <= 1000 {
+			p.Radius += otherPlanet.Radius / 4
+		}
+
+		p.Velocity = p.Velocity.add(vector2{
+			((otherPlanet.Velocity.X) / p.Mass),
+			((otherPlanet.Velocity.Y) / p.Mass),
+		})
+		p.updateImage()
+	}
+}
+
 func (handler *planetHandler) updatePlanets() {
 	if !handler.running {
 		return
@@ -87,7 +108,7 @@ func (handler *planetHandler) focusPlanet(planetIndex int) {
 }
 
 func (handler *planetHandler) deleteSelectedPlanet() {
-	handler.planetsToRemove = append(handler.planetsToRemove, handler.selectedPlanet.index)
+	handler.deletePlanet(handler.selectedPlanet.index)
 	handler.selectedPlanet.isSelected = false
 }
 
